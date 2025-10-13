@@ -4,7 +4,6 @@
  * Requirements: 4.1, 4.3, 4.4
  */
 
-const InspectionResult = require('../../models/InspectionResult');
 const InspectionFinding = require('../../models/InspectionFinding');
 const { v4: uuidv4 } = require('uuid');
 
@@ -33,7 +32,7 @@ class BaseInspector {
    * 하위 클래스에서 반드시 구현해야 함
    * @param {Object} awsCredentials - AWS 자격 증명
    * @param {Object} inspectionConfig - 검사 설정
-   * @returns {Promise<InspectionResult>} 검사 결과
+   * @returns {Promise<Array>} 검사 항목 결과 배열
    */
   async inspect(awsCredentials, inspectionConfig) {
     throw new Error('inspect() method must be implemented by subclass');
@@ -45,21 +44,15 @@ class BaseInspector {
    * @param {string} inspectionId - 검사 ID
    * @param {Object} awsCredentials - AWS 자격 증명
    * @param {Object} inspectionConfig - 검사 설정
-   * @returns {Promise<InspectionResult>} 검사 결과
+   * @returns {Promise<Array>} 검사 항목 결과 배열
    */
   async executeItemInspection(customerId, inspectionId, awsCredentials, inspectionConfig = {}) {
-    const inspectionResult = new InspectionResult({
-      customerId,
-      inspectionId,
-      serviceType: this.serviceType,
-      status: 'IN_PROGRESS',
-      assumeRoleArn: awsCredentials.roleArn,
-      metadata: {
-        ...this.metadata,
-        inspectorVersion: this.getVersion(),
-        targetItem: inspectionConfig.targetItem
-      }
-    });
+    // 검사 메타데이터 초기화
+    this.metadata.startTime = Date.now();
+    this.metadata.customerId = customerId;
+    this.metadata.inspectionId = inspectionId;
+    this.metadata.assumeRoleArn = awsCredentials.roleArn;
+    this.metadata.targetItem = inspectionConfig.targetItem;
 
     try {
       this.logger.info(`Starting ${this.serviceType} item inspection`, {
@@ -85,23 +78,23 @@ class BaseInspector {
 
       this.metadata.endTime = Date.now();
 
-      // 검사 결과 완료 처리
-      const finalResults = this.buildFinalResults(results);
-      inspectionResult.complete(finalResults);
+      // 검사 완료 처리
+      this.metadata.endTime = Date.now();
+      const duration = this.metadata.endTime - this.metadata.startTime;
 
-      // itemResults 생성 (TransactionService에서 필요)
-      inspectionResult.itemResults = this.buildItemResults(inspectionConfig);
+      // 검사 항목 결과 생성
+      const itemResults = this.buildItemResults(inspectionConfig);
 
       this.logger.info(`Completed ${this.serviceType} item inspection`, {
         customerId,
         inspectionId,
         targetItem: inspectionConfig.targetItem,
-        duration: inspectionResult.duration,
+        duration,
         resourcesScanned: this.metadata.resourcesScanned,
         findingsCount: this.findings.length
       });
 
-      return inspectionResult;
+      return itemResults;
 
     } catch (error) {
       this.metadata.endTime = Date.now();
@@ -114,8 +107,8 @@ class BaseInspector {
         stack: error.stack
       });
 
-      inspectionResult.fail(error.message);
-      return inspectionResult;
+      // 에러 발생 시 빈 결과 반환
+      return [];
     }
   }
 

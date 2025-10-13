@@ -11,7 +11,7 @@
 
 const { STSClient, AssumeRoleCommand } = require('@aws-sdk/client-sts');
 const { v4: uuidv4 } = require('uuid');
-const InspectionResult = require('../models/InspectionResult');
+// InspectionResult 제거 - InspectionItemResult만 사용
 const InspectionStatus = require('../models/InspectionStatus');
 const inspectorRegistry = require('./inspectors');
 const webSocketService = require('./websocketService');
@@ -276,7 +276,7 @@ class InspectionService {
       }
 
       // 3. 검사 수행
-      const inspectionResult = await inspector.executeItemInspection(
+      const itemResults = await inspector.executeItemInspection(
         customerId,
         inspectionId,
         awsCredentials,
@@ -300,7 +300,7 @@ class InspectionService {
 
       try {
         console.log(`💾 [InspectionService] Attempting transaction save for ${inspectionId}`);
-        await this.saveInspectionResultWithTransaction(inspectionResult);
+        await this.saveInspectionItemResults(itemResults, { customerId, inspectionId });
         saveSuccessful = true;
         console.log(`✅ [InspectionService] Transaction save successful for ${inspectionId}`);
       } catch (saveError) {
@@ -311,7 +311,7 @@ class InspectionService {
 
         try {
           console.log(`🚨 [InspectionService] Attempting emergency save for ${inspectionId}`);
-          await this.emergencySaveInspectionResult(inspectionResult);
+          await this.emergencySaveInspectionItemResults(itemResults, { customerId, inspectionId });
           saveSuccessful = true;
           console.log(`✅ [InspectionService] Emergency save successful for ${inspectionId}`);
         } catch (emergencyError) {
@@ -708,24 +708,25 @@ class InspectionService {
   }
 
   /**
-   * 트랜잭션을 사용한 검사 결과 저장
+   * 검사 항목 결과 저장 (단순화)
    */
-  async saveInspectionResultWithTransaction(inspectionResult) {
+  async saveInspectionItemResults(itemResults, metadata) {
     try {
-      const transactionService = require('./transactionService');
-      const result = await transactionService.saveInspectionResultsTransaction(
-        inspectionResult,
-        inspectionResult.itemResults || []
-      );
-
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Transaction failed');
+      const inspectionItemService = require('./inspectionItemService');
+      
+      if (itemResults && itemResults.length > 0) {
+        for (const itemResult of itemResults) {
+          await inspectionItemService.saveItemResult(metadata.customerId, metadata.inspectionId, itemResult);
+        }
       }
 
-      return result;
+      this.logger.info('Item results save completed', {
+        inspectionId: metadata.inspectionId,
+        itemCount: itemResults?.length || 0
+      });
     } catch (error) {
-      this.logger.error('Transaction save failed', {
-        inspectionId: inspectionResult.inspectionId,
+      this.logger.error('Item results save failed', {
+        inspectionId: metadata.inspectionId,
         error: error.message
       });
       throw error;
@@ -733,29 +734,10 @@ class InspectionService {
   }
 
   /**
-   * 응급 저장 (트랜잭션 실패 시)
+   * 응급 저장 (동일한 로직)
    */
-  async emergencySaveInspectionResult(inspectionResult) {
-    try {
-      const inspectionItemService = require('./inspectionItemService');
-      
-      if (inspectionResult.itemResults && inspectionResult.itemResults.length > 0) {
-        for (const itemResult of inspectionResult.itemResults) {
-          await inspectionItemService.saveInspectionItemResult(itemResult, inspectionResult.inspectionId);
-        }
-      }
-
-      this.logger.info('Emergency save completed', {
-        inspectionId: inspectionResult.inspectionId,
-        itemCount: inspectionResult.itemResults?.length || 0
-      });
-    } catch (error) {
-      this.logger.error('Emergency save failed', {
-        inspectionId: inspectionResult.inspectionId,
-        error: error.message
-      });
-      throw error;
-    }
+  async emergencySaveInspectionItemResults(itemResults, metadata) {
+    return this.saveInspectionItemResults(itemResults, metadata);
   }
 
   /**
@@ -766,11 +748,9 @@ class InspectionService {
       if (inspector && inspector.getPartialResults) {
         const partialResults = inspector.getPartialResults();
         if (partialResults && partialResults.length > 0) {
-          await this.emergencySaveInspectionResult({
+          await this.emergencySaveInspectionItemResults(partialResults, {
             inspectionId,
-            customerId,
-            serviceType,
-            itemResults: partialResults
+            customerId
           });
         }
       }
