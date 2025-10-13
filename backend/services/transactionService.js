@@ -63,7 +63,7 @@ class TransactionService {
           // 기존 필드명 제거됨 - inspectionId, inspectionTime으로 대체
           status: this.determineItemStatus(itemResult),
           
-          riskLevel: itemResult.riskLevel || 'LOW',
+
           
           findings: itemResult.findings || []
         };
@@ -404,7 +404,6 @@ class TransactionService {
    */
   determineItemStatus(itemResult) {
     const issuesFound = itemResult.issuesFound || 0;
-    const riskLevel = itemResult.riskLevel || 'LOW';
     const hasFindings = itemResult.findings && itemResult.findings.length > 0;
 
     // findings가 있으면 검사가 수행된 것으로 판단
@@ -412,16 +411,13 @@ class TransactionService {
       return 'NOT_CHECKED';
     }
 
-    // PASS 항목들만 있는 경우 (issuesFound가 0이거나 riskLevel이 PASS)
-    if (issuesFound === 0 || riskLevel === 'PASS') {
+    // PASS: 문제가 발견되지 않은 경우
+    if (issuesFound === 0) {
       return 'PASS';
     }
 
-    if (riskLevel === 'CRITICAL' || riskLevel === 'HIGH') {
-      return 'FAIL';
-    }
-
-    return 'WARNING';
+    // FAIL: 문제가 발견된 경우
+    return 'FAIL';
   }
 
   /**

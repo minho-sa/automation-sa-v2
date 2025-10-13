@@ -392,14 +392,14 @@ class InspectionItemService {
     // 서비스별 카테고리 매핑만 관리 (이름은 프론트엔드에서 매핑)
     const categoryMappings = {
       EC2: {
-        'dangerous_ports': 'security',
-        'ebs_encryption': 'security',
-        'ebs_volume_version': 'performance',
+        'dangerous-ports': 'security',
+        'ebs-encryption': 'security',
+        'ebs-volume-version': 'performance',
         'termination-protection': 'security',
-        'unused_security_groups': 'cost_optimization',
-        'unused_elastic_ip': 'cost_optimization',
-        'old_snapshots': 'cost_optimization',
-        'stopped-instances': 'cost_optimization',
+        'unused-security-groups': 'cost-optimization',
+        'unused-elastic-ip': 'cost-optimization',
+        'old-snapshots': 'cost-optimization',
+        'stopped-instances': 'cost-optimization',
         // 레거시
         'security_groups': 'security',
         'key_pairs': 'security',
@@ -419,9 +419,9 @@ class InspectionItemService {
         'bucket-public-access': 'security',
         'bucket-policy': 'security',
         'bucket-cors': 'security',
-        'bucket-versioning': 'data_protection',
-        'bucket-logging': 'data_protection',
-        'bucket-lifecycle': 'cost_optimization',
+        'bucket-versioning': 'data-protection',
+        'bucket-logging': 'data-protection',
+        'bucket-lifecycle': 'cost-optimization',
         // 레거시
         'bucket_policy': 'security',
         'public_access': 'security',

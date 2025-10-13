@@ -14,7 +14,7 @@ const InspectionItemResultSchema = {
 
   // 검사 정보
   serviceType: 'string', // EC2, RDS, S3, IAM
-  itemId: 'string', // dangerous_ports, bucket_encryption 등
+  itemId: 'string', // dangerous-ports, bucket-encryption 등
   category: 'string', // security, performance, cost
 
   // 검사 결과
@@ -25,7 +25,6 @@ const InspectionItemResultSchema = {
   // 결과 요약
   totalResources: 'number', // 검사된 리소스 수
   issuesFound: 'number', // 발견된 문제 수
-  riskLevel: 'string', // CRITICAL, HIGH, MEDIUM, LOW
 
   // 상세 결과
   findings: 'list' // 발견된 문제들
@@ -89,7 +88,7 @@ module.exports = {
     /**
      * LATEST 아이템 키 생성
      * @param {string} serviceType - 서비스 타입 (EC2, S3, IAM)
-     * @param {string} itemId - 항목 ID (dangerous_ports, bucket_encryption)
+     * @param {string} itemId - 항목 ID (dangerous-ports, bucket-encryption)
      * @returns {string} LATEST 아이템 키
      */
     createLatestKey(serviceType, itemId) {

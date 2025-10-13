@@ -100,21 +100,21 @@ class EC2Inspector extends BaseInspector {
 
     try {
       switch (targetItem) {
-        case 'dangerous_ports':
+        case 'dangerous-ports':
           await this._inspectDangerousPorts(results);
           break;
 
-        case 'ebs_encryption':
+        case 'ebs-encryption':
           await this._inspectEBSEncryption(results);
           break;
 
 
 
-        case 'unused_security_groups':
+        case 'unused-security-groups':
           await this._inspectUnusedSecurityGroups(results);
           break;
 
-        case 'unused_elastic_ip':
+        case 'unused-elastic-ip':
           await this._inspectUnusedElasticIp(results);
           break;
 

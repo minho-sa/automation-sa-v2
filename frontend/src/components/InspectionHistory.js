@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { inspectionService } from '../services';
 import { severityColors, severityIcons } from '../data/inspectionItems';
-import { getItemName, getItemInfo } from '../utils/inspectionItemMappings';
+import { getItemName, getItemInfo, getItemSeverity, getSeverityColor, getSeverityIcon } from '../utils/itemMappings';
 import './InspectionHistory.css';
 
 const InspectionHistory = () => {
@@ -34,19 +34,6 @@ const InspectionHistory = () => {
   // 실제 데이터를 검사 항목 단위로 그룹화
   const enrichItemData = (items) => {
     return items.map((item) => {
-      // 위험도 계산 (가장 높은 위험도 사용)
-      let highestRiskLevel = item.riskLevel || 'LOW';
-
-      if (item.findings && item.findings.length > 0) {
-        const riskLevels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-        item.findings.forEach(finding => {
-          const findingRiskIndex = riskLevels.indexOf(finding.riskLevel);
-          const currentRiskIndex = riskLevels.indexOf(highestRiskLevel);
-          if (findingRiskIndex > currentRiskIndex) {
-            highestRiskLevel = finding.riskLevel;
-          }
-        });
-      }
 
       // 검사 요약 생성
       const findingsCount = item.findings ? item.findings.length : 0;
@@ -59,13 +46,13 @@ const InspectionHistory = () => {
         serviceType: item.serviceType,
         itemId: item.itemId,
 
-        // 검사 항목 정보 (inspectionItems.js 단일 소스에서 매핑)
-        inspectionTitle: getItemName(item.serviceType, item.itemId) || `${item.serviceType} 보안 검사`,
+        // 검사 항목 정보 (inspectionItems.js에서 name과 severity 함께 가져옴)
+        inspectionTitle: getItemName(item.serviceType, item.itemId),
         checkName: item.itemId?.toUpperCase().replace(/_/g, '-') || `${item.serviceType}-CHECK`,
         category: getItemInfo(item.serviceType, item.itemId)?.categoryName || '보안 검사',
+        severity: getItemSeverity(item.serviceType, item.itemId),
 
-        // 위험도 정보
-        riskLevel: highestRiskLevel,
+
 
         // 검사 요약
         findingsCount: findingsCount,
@@ -189,11 +176,8 @@ const InspectionHistory = () => {
       itemName: item.inspectionTitle,
       results: {
         summary: {
-
-          criticalIssues: item.findings.filter(f => f.riskLevel === 'CRITICAL').length,
-          highRiskIssues: item.findings.filter(f => f.riskLevel === 'HIGH').length,
-          mediumRiskIssues: item.findings.filter(f => f.riskLevel === 'MEDIUM').length,
-          lowRiskIssues: item.findings.filter(f => f.riskLevel === 'LOW').length
+          totalIssues: item.findings ? item.findings.length : 0,
+          severity: getItemSeverity(item.serviceType, item.itemId)
         },
         findings: item.findings || []
       }
@@ -288,26 +272,7 @@ const InspectionHistory = () => {
     return statusMapping[status] || 'NOT_CHECKED';
   };
 
-  // 위험도 관련 함수들
-  const getRiskColor = (riskLevel) => {
-    const riskColors = {
-      'CRITICAL': '#dc2626',
-      'HIGH': '#ea580c',
-      'MEDIUM': '#d97706',
-      'LOW': '#65a30d'
-    };
-    return riskColors[riskLevel] || '#6b7280';
-  };
 
-  const getRiskIcon = (riskLevel) => {
-    const riskIcons = {
-      'CRITICAL': '🔴',
-      'HIGH': '🟠',
-      'MEDIUM': '🟡',
-      'LOW': '🟢'
-    };
-    return riskIcons[riskLevel] || '⚪';
-  };
 
   // 검사 결과 요약 생성
   const getResultSummary = (item) => {
@@ -323,37 +288,14 @@ const InspectionHistory = () => {
       );
     }
 
-    // findings 배열에서 문제와 경고 개수 계산
-    let problemCount = 0; // CRITICAL, HIGH
-    let warningCount = 0; // MEDIUM, LOW
-
-    findings.forEach(finding => {
-      const risk = finding.riskLevel || 'LOW';
-      if (risk === 'CRITICAL' || risk === 'HIGH') {
-        problemCount++;
-      } else if (risk === 'MEDIUM' || risk === 'LOW') {
-        warningCount++;
-      }
-    });
-
-    const summaryParts = [];
-
-    if (problemCount > 0) {
-      summaryParts.push(`${problemCount}개 문제`);
-    }
-    if (warningCount > 0) {
-      summaryParts.push(`${warningCount}개 경고`);
-    }
-
-    // 요약이 없으면 전체 개수만 표시
-    if (summaryParts.length === 0) {
-      summaryParts.push(`${findingsCount}개 항목`);
-    }
+    // 심각도에 따른 아이콘과 색상 결정
+    const severity = item.severity || 'MEDIUM';
+    const severityIcon = getSeverityIcon(severity);
+    const severityColor = getSeverityColor(severity);
 
     return (
-      <div className="summary-text warning">
-        <span className="summary-icon">⚠️</span>
-        <span>{summaryParts.join(', ')}</span>
+      <div className="summary-text warning" style={{ color: severityColor }}>
+        <span>{findingsCount}개 문제 ({severity})</span>
       </div>
     );
   };
@@ -507,11 +449,18 @@ const InspectionHistory = () => {
                     {getResultSummary(item)}
                   </div>
 
-                  {/* 위험도 */}
-                  <div className="row-risk-level">
-                    <div className="risk-badge-mini" style={{ backgroundColor: getRiskColor(item.riskLevel) }}>
-                      {getRiskIcon(item.riskLevel)} {item.riskLevel}
-                    </div>
+                  {/* 심각도 */}
+                  <div className="row-severity">
+                    <span 
+                      className="severity-badge-compact"
+                      style={{ 
+                        backgroundColor: getSeverityColor(item.severity) + '20',
+                        color: getSeverityColor(item.severity),
+                        borderColor: getSeverityColor(item.severity) + '40'
+                      }}
+                    >
+                      {item.severity}
+                    </span>
                   </div>
 
                   {/* 시간 */}
@@ -603,35 +552,22 @@ const InspectionHistory = () => {
                 </div>
 
                 <div className="summary-stats">
-                  <div className="stat-item-large critical">
-                    <span className="stat-icon">🚨</span>
+                  <div className="stat-item-large total">
+                    <span className="stat-icon">📊</span>
                     <div className="stat-content">
-                      <span className="stat-value">{selectedInspection.results?.summary?.criticalIssues || 0}</span>
-                      <span className="stat-label">심각한 문제</span>
+                      <span className="stat-value">{selectedInspection.results?.summary?.totalIssues || 0}</span>
+                      <span className="stat-label">총 문제</span>
                     </div>
                   </div>
 
-                  <div className="stat-item-large high">
-                    <span className="stat-icon">⚠️</span>
+                  <div className="stat-item-large severity" style={{ 
+                    backgroundColor: getSeverityColor(selectedInspection.results?.summary?.severity || 'MEDIUM') + '20',
+                    borderColor: getSeverityColor(selectedInspection.results?.summary?.severity || 'MEDIUM')
+                  }}>
+                    <span className="stat-icon">📊</span>
                     <div className="stat-content">
-                      <span className="stat-value">{selectedInspection.results?.summary?.highRiskIssues || 0}</span>
-                      <span className="stat-label">높은 위험</span>
-                    </div>
-                  </div>
-
-                  <div className="stat-item-large medium">
-                    <span className="stat-icon">⚡</span>
-                    <div className="stat-content">
-                      <span className="stat-value">{selectedInspection.results?.summary?.mediumRiskIssues || 0}</span>
-                      <span className="stat-label">중간 위험</span>
-                    </div>
-                  </div>
-
-                  <div className="stat-item-large low">
-                    <span className="stat-icon">ℹ️</span>
-                    <div className="stat-content">
-                      <span className="stat-value">{selectedInspection.results?.summary?.lowRiskIssues || 0}</span>
-                      <span className="stat-label">낮은 위험</span>
+                      <span className="stat-value">{selectedInspection.results?.summary?.severity || 'MEDIUM'}</span>
+                      <span className="stat-label">심각도</span>
                     </div>
                   </div>
                 </div>
@@ -650,7 +586,7 @@ const InspectionHistory = () => {
                 </div>
               </div>
 
-              {/* 검사 결과 섹션 - 위험도별 분류 */}
+              {/* 검사 결과 섹션 */}
               {selectedInspection.results?.findings && selectedInspection.results.findings.length > 0 ? (
                 <div className="findings-section-modern">
                   <div className="section-header-modern">
@@ -658,86 +594,43 @@ const InspectionHistory = () => {
                     <span className="findings-count">{selectedInspection.results.findings.length}개 문제</span>
                   </div>
 
-                  {/* 위험도별 분류 */}
-                  {(() => {
-                    // 위험도별로 findings 분류
-                    const findingsByRisk = {
-                      'CRITICAL': selectedInspection.results.findings.filter(f => f.riskLevel === 'CRITICAL'),
-                      'HIGH': selectedInspection.results.findings.filter(f => f.riskLevel === 'HIGH'),
-                      'MEDIUM': selectedInspection.results.findings.filter(f => f.riskLevel === 'MEDIUM'),
-                      'LOW': selectedInspection.results.findings.filter(f => f.riskLevel === 'LOW')
-                    };
+                  <div className="findings-grid-modern">
+                    {selectedInspection.results.findings.map((finding, index) => (
+                      <div key={index} className="finding-card-modern">
+                        <div className="finding-card-content">
+                          <div className="resource-info-modern">
+                            <span className="resource-type">{finding.resourceType}</span>
+                            <span className="resource-id">{finding.resourceId}</span>
+                          </div>
 
-                    const riskLevelInfo = {
-                      'CRITICAL': { icon: '🚨', label: '심각한 문제', color: '#dc2626' },
-                      'HIGH': { icon: '⚠️', label: '높은 위험', color: '#ea580c' },
-                      'MEDIUM': { icon: '⚡', label: '중간 위험', color: '#d97706' },
-                      'LOW': { icon: 'ℹ️', label: '낮은 위험', color: '#65a30d' }
-                    };
-
-                    return Object.entries(findingsByRisk).map(([riskLevel, findings]) => {
-                      if (findings.length === 0) return null;
-
-                      const riskInfo = riskLevelInfo[riskLevel];
-
-                      return (
-                        <div key={riskLevel} className="risk-level-section">
-                          <div className="risk-level-header">
-                            <div className="risk-level-title" style={{ color: riskInfo.color }}>
-                              <span className="risk-level-icon">{riskInfo.icon}</span>
-                              <h4>{riskInfo.label}</h4>
-                              <span className="risk-level-count">({findings.length}개)</span>
+                          <div className="issue-description">
+                            <div className="issue-title">
+                              <span className="issue-icon">🚨</span>
+                              <strong>문제</strong>
                             </div>
+                            <p>{finding.issue}</p>
                           </div>
 
-                          <div className="findings-grid-modern">
-                            {findings.map((finding, index) => (
-                              <div key={`${riskLevel}-${index}`} className="finding-card-modern">
-                                <div className="finding-card-header">
-                                  <div className="severity-indicator" style={{ backgroundColor: severityColors[finding.riskLevel] }}>
-                                    <span className="severity-icon">{severityIcons[finding.riskLevel]}</span>
-                                    <span className="severity-text">{finding.riskLevel}</span>
-                                  </div>
-                                </div>
-
-                                <div className="finding-card-content">
-                                  <div className="resource-info-modern">
-                                    <span className="resource-type">{finding.resourceType}</span>
-                                    <span className="resource-id">{finding.resourceId}</span>
-                                  </div>
-
-                                  <div className="issue-description">
-                                    <div className="issue-title">
-                                      <span className="issue-icon">🚨</span>
-                                      <strong>문제</strong>
-                                    </div>
-                                    <p>{finding.issue}</p>
-                                  </div>
-
-                                  {finding.recommendation && (
-                                    <div className="recommendation-description">
-                                      <div className="recommendation-title">
-                                        <span className="recommendation-icon">💡</span>
-                                        <strong>권장사항</strong>
-                                      </div>
-                                      <p>{finding.recommendation}</p>
-                                    </div>
-                                  )}
-
-                                  {finding.timestamp && (
-                                    <div className="finding-timestamp-modern">
-                                      <span className="timestamp-icon">🕐</span>
-                                      <span>{formatDateTime(finding.timestamp)}</span>
-                                    </div>
-                                  )}
-                                </div>
+                          {finding.recommendation && (
+                            <div className="recommendation-description">
+                              <div className="recommendation-title">
+                                <span className="recommendation-icon">💡</span>
+                                <strong>권장사항</strong>
                               </div>
-                            ))}
-                          </div>
+                              <p>{finding.recommendation}</p>
+                            </div>
+                          )}
+
+                          {finding.timestamp && (
+                            <div className="finding-timestamp-modern">
+                              <span className="timestamp-icon">🕐</span>
+                              <span>{formatDateTime(finding.timestamp)}</span>
+                            </div>
+                          )}
                         </div>
-                      );
-                    }).filter(Boolean);
-                  })()}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="no-findings-modern">

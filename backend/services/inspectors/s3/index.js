@@ -173,7 +173,7 @@ class S3Inspector extends BaseInspector {
         const finding = new InspectionFinding({
           resourceId: 'no-s3-buckets',
           resourceType: 'S3Bucket',
-          riskLevel: 'PASS',
+
           issue: 'S3 검사 - 통과 (버킷 없음)',
           recommendation: 'S3 버킷이 필요한 경우 보안 모범 사례를 적용하여 생성하세요.'
         });
@@ -380,10 +380,7 @@ class S3Inspector extends BaseInspector {
 
     const summary = {
       totalResources: this.resourceCount,
-      criticalIssues: this.findings.filter(f => f.riskLevel === 'CRITICAL').length,
-      highRiskIssues: this.findings.filter(f => f.riskLevel === 'HIGH').length,
-      mediumRiskIssues: this.findings.filter(f => f.riskLevel === 'MEDIUM').length,
-      lowRiskIssues: this.findings.filter(f => f.riskLevel === 'LOW').length,
+      totalIssues: this.findings.length,
       partial: true,
       completedChecks: this.getCompletedChecks()
     };

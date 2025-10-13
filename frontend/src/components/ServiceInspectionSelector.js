@@ -326,9 +326,9 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
                 <div className="category-header-compact">
                   <div className="category-icon-compact">
                     {category.id === 'security' ? '🔒' : 
-                     category.id === 'cost_optimization' ? '💰' : 
+                     category.id === 'cost-optimization' ? '💰' : 
                      category.id === 'backup' ? '💾' : 
-                     category.id === 'data_protection' ? '🛡️' : 
+                     category.id === 'data-protection' ? '🛡️' : 
                      category.id === 'policies' ? '📋' : '⚙️'}
                   </div>
                   <h3>{category.name}</h3>

@@ -355,24 +355,24 @@ class BaseInspector {
   getCategoryForItem(itemId) {
     const categoryMap = {
       // 보안 관련
-      'dangerous_ports': 'security',
+      'dangerous-ports': 'security',
 
-      'ebs_encryption': 'security',
-      'bucket_encryption': 'security',
-      'bucket_public_access': 'security',
-      'overprivileged_user_policies': 'security',
-      'overprivileged_role_policies': 'security',
+      'ebs-encryption': 'security',
+      'bucket-encryption': 'security',
+      'bucket-public-access': 'security',
+      'overprivileged-user-policies': 'security',
+      'overprivileged-role-policies': 'security',
 
       // 비용 최적화
-      'unused_security_groups': 'cost_optimization',
-      'unused_elastic_ip': 'cost_optimization',
-      'old_snapshots': 'cost_optimization',
-      'stopped-instances': 'cost_optimization',
-      'unused_policies': 'cost_optimization',
+      'unused-security-groups': 'cost-optimization',
+      'unused-elastic-ip': 'cost-optimization',
+      'old-snapshots': 'cost-optimization',
+      'stopped-instances': 'cost-optimization',
+      'unused-policies': 'cost-optimization',
 
       // 운영 효율성
-      'termination-protection': 'operational_excellence',
-      'ebs_volume_version': 'operational_excellence',
+      'termination-protection': 'operational-excellence',
+      'ebs-volume-version': 'operational-excellence',
       'bucket_versioning': 'operational_excellence',
       'bucket_lifecycle': 'operational_excellence',
       'bucket_logging': 'operational_excellence'
