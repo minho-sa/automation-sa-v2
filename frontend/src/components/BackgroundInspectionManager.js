@@ -10,10 +10,7 @@ import BackgroundInspectionMonitor from './BackgroundInspectionMonitor';
 const BackgroundInspectionManager = () => {
   const { 
     getBackgroundInspections, 
-    moveToForeground, 
-    completeInspection, 
-    updateInspectionProgress,
-    removeInspection 
+    completeInspection
   } = useInspection();
 
   const backgroundInspections = getBackgroundInspections();

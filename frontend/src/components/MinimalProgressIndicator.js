@@ -3,12 +3,12 @@
  * 최소한의 공간을 차지하는 진행률 표시기
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useInspection } from '../context/InspectionContext';
 import './MinimalProgressIndicator.css';
 
 const MinimalProgressIndicator = () => {
-  const { getBackgroundInspections, getForegroundInspection, activeInspections } = useInspection();
+  const { getBackgroundInspections, getForegroundInspection } = useInspection();
 
   const backgroundInspections = getBackgroundInspections();
   const foregroundInspection = getForegroundInspection();

@@ -22,24 +22,12 @@ const InspectionHistory = () => {
     lastEvaluatedKey: null
   });
 
-  // 클라이언트 사이드 상태 필터링만 (날짜는 백엔드에서 처리)
-  const applyClientSideFilters = (data) => {
-    return data.filter(item => {
-      // 상태 필터만 클라이언트에서 처리
-      if (filters.status !== 'all') {
-        const normalizedItemStatus = normalizeStatus(item.status);
-        if (normalizedItemStatus !== filters.status) {
-          return false;
-        }
-      }
-      return true;
-    });
-  };
+
 
   // 컴포넌트 마운트 시 히스토리 로드
   useEffect(() => {
     loadInspectionHistory();
-  }, [filters]);
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -141,7 +129,7 @@ const InspectionHistory = () => {
           return true;
         });
 
-        const finalData = loadMore ? [...prev, ...newData] : newData;
+        const finalData = loadMore ? [...historyData, ...newData] : newData;
         setHistoryData(finalData);
         setPagination({
           hasMore: result.data.hasMore || false,
@@ -482,7 +470,6 @@ const InspectionHistory = () => {
           <div className="history-list-compact">
             {historyData.map((item, index) => {
               const normalizedStatus = normalizeStatus(item.status);
-              const riskLevel = item.riskLevel || 'LOW';
 
 
 
