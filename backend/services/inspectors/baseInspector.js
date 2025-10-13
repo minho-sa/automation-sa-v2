@@ -288,25 +288,16 @@ class BaseInspector {
       status = 'WARNING';
     }
 
-    // 위험도 결정
-    let riskLevel = 'LOW';
-    if (summary.criticalIssues > 0) {
-      riskLevel = 'CRITICAL';
-    } else if (summary.highRiskIssues > 0) {
-      riskLevel = 'HIGH';
-    } else if (summary.mediumRiskIssues > 0) {
-      riskLevel = 'MEDIUM';
-    }
-
+    // 단순화: findings 배열만 반환, severity는 프론트엔드에서 결정
     return [{
       serviceType: this.serviceType,
       itemId: inspectionConfig.targetItem,
       category: this.getCategoryForItem(inspectionConfig.targetItem),
       status: status,
-      riskLevel: riskLevel,
       totalResources: this.metadata.resourcesScanned || 0,
       issuesFound: this.findings.length,
-      findings: this.findings.map(finding => finding.toApiResponse())
+      findings: this.findings.map(finding => finding.toApiResponse()),
+      inspectionTime: new Date().toISOString()
     }];
   }
 
@@ -638,6 +629,7 @@ class BaseInspector {
   setProgressCallback(callback) {
     this.progressCallback = callback;
   }
+  // severity 관련 메서드 제거 - 프론트엔드에서만 처리
 }
 
 module.exports = BaseInspector;

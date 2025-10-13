@@ -439,13 +439,13 @@ class DataConsistencyService {
       }
     });
 
-    // 요약 통계 계산
+    // 요약 통계 계산 - 새로운 CRITICAL/WARN/PASS 시스템
     const summary = {
       totalResources: itemResults.reduce((sum, item) => sum + (item.totalResources || 0), 0),
-      criticalIssues: allFindings.filter(f => f.riskLevel === 'CRITICAL').length,
-      highRiskIssues: allFindings.filter(f => f.riskLevel === 'HIGH').length,
-      mediumRiskIssues: allFindings.filter(f => f.riskLevel === 'MEDIUM').length,
-      lowRiskIssues: allFindings.filter(f => f.riskLevel === 'LOW').length,
+      totalFindings: allFindings.length,
+      criticalItems: itemResults.filter(item => item.summary?.actualStatus === 'CRITICAL').length,
+      warnItems: itemResults.filter(item => item.summary?.actualStatus === 'WARN').length,
+      passItems: itemResults.filter(item => item.summary?.actualStatus === 'PASS').length,
       overallScore: Math.round(itemResults.reduce((sum, item) => sum + (item.score || 0), 0) / itemResults.length)
     };
 

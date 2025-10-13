@@ -405,19 +405,8 @@ class HistoryService {
       }
       
       if (item.findings) {
-        item.findings.forEach(finding => {
-          switch (finding.riskLevel) {
-            case 'HIGH':
-              highRiskIssues++;
-              break;
-            case 'MEDIUM':
-              mediumRiskIssues++;
-              break;
-            case 'LOW':
-              lowRiskIssues++;
-              break;
-          }
-        });
+        // 새로운 시스템에서는 findings 개수만 카운트
+        // severity는 검사 항목 레벨에서 결정됨
       }
       
       totalResources += item.resourcesScanned || 1;
@@ -491,13 +480,9 @@ class HistoryService {
       return 'COMPLETED';
     }
 
-    const hasHighRisk = findings.some(f => f.riskLevel === 'HIGH');
-    const hasMediumRisk = findings.some(f => f.riskLevel === 'MEDIUM');
-
-    if (hasHighRisk) {
+    // 새로운 시스템: findings가 있으면 FAILED, 없으면 COMPLETED
+    if (findings.length > 0) {
       return 'FAILED';
-    } else if (hasMediumRisk) {
-      return 'WARNING';
     } else {
       return 'COMPLETED';
     }

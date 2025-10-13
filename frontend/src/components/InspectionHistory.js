@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { inspectionService } from '../services';
-import { severityColors, severityIcons } from '../data/inspectionItems';
-import { getItemName, getItemInfo, getItemSeverity, getSeverityColor, getSeverityIcon } from '../utils/itemMappings';
+import { 
+  getItemName, 
+  getItemInfo, 
+  getItemSeverity, 
+  getSeverityColor, 
+  getSeverityIcon,
+  determineInspectionStatus,
+  getActualStatus,
+  calculateStatusStats
+} from '../utils/itemMappings';
 import './InspectionHistory.css';
 
 const InspectionHistory = () => {
@@ -31,14 +39,17 @@ const InspectionHistory = () => {
 
 
 
-  // 실제 데이터를 검사 항목 단위로 그룹화
+  // 실제 데이터를 검사 항목 단위로 그룹화 - 새로운 CRITICAL/WARN 모델 사용
   const enrichItemData = (items) => {
     return items.map((item) => {
-
       // 검사 요약 생성
       const findingsCount = item.findings ? item.findings.length : 0;
       const resourcesAffected = item.findings ?
         [...new Set(item.findings.map(f => f.resourceId))].length : 0;
+
+      // 기본 severity와 실제 상태 결정
+      const baseSeverity = getItemSeverity(item.serviceType, item.itemId);
+      const actualStatus = getActualStatus(item);
 
       return {
         // 기본 정보
@@ -50,9 +61,11 @@ const InspectionHistory = () => {
         inspectionTitle: getItemName(item.serviceType, item.itemId),
         checkName: item.itemId?.toUpperCase().replace(/_/g, '-') || `${item.serviceType}-CHECK`,
         category: getItemInfo(item.serviceType, item.itemId)?.categoryName || '보안 검사',
-        severity: getItemSeverity(item.serviceType, item.itemId),
-
-
+        
+        // 새로운 severity 시스템
+        baseSeverity: baseSeverity,        // 기본 severity (CRITICAL 또는 WARN)
+        actualStatus: actualStatus,        // 실제 상태 (CRITICAL, WARN, PASS)
+        severity: actualStatus,            // UI 호환성을 위해 actualStatus를 severity로 사용
 
         // 검사 요약
         findingsCount: findingsCount,
@@ -274,12 +287,13 @@ const InspectionHistory = () => {
 
 
 
-  // 검사 결과 요약 생성
+  // 검사 결과 요약 생성 - 새로운 CRITICAL/WARN/PASS 모델 사용
   const getResultSummary = (item) => {
     const findings = item.findings || [];
     const findingsCount = item.findingsCount || findings.length || 0;
+    const actualStatus = item.actualStatus || item.severity;
 
-    if (findingsCount === 0) {
+    if (actualStatus === 'PASS' || findingsCount === 0) {
       return (
         <div className="summary-text success">
           <span className="summary-icon">✅</span>
@@ -289,13 +303,13 @@ const InspectionHistory = () => {
     }
 
     // 심각도에 따른 아이콘과 색상 결정
-    const severity = item.severity || 'MEDIUM';
-    const severityIcon = getSeverityIcon(severity);
-    const severityColor = getSeverityColor(severity);
+    const severityIcon = getSeverityIcon(actualStatus);
+    const severityColor = getSeverityColor(actualStatus);
 
     return (
       <div className="summary-text warning" style={{ color: severityColor }}>
-        <span>{findingsCount}개 문제 ({severity})</span>
+        <span className="summary-icon">{severityIcon}</span>
+        <span>{findingsCount}개 문제 ({actualStatus})</span>
       </div>
     );
   };
@@ -454,12 +468,12 @@ const InspectionHistory = () => {
                     <span 
                       className="severity-badge-compact"
                       style={{ 
-                        backgroundColor: getSeverityColor(item.severity) + '20',
-                        color: getSeverityColor(item.severity),
-                        borderColor: getSeverityColor(item.severity) + '40'
+                        backgroundColor: getSeverityColor(item.actualStatus || item.severity) + '20',
+                        color: getSeverityColor(item.actualStatus || item.severity),
+                        borderColor: getSeverityColor(item.actualStatus || item.severity) + '40'
                       }}
                     >
-                      {item.severity}
+                      {item.actualStatus || item.severity}
                     </span>
                   </div>
 
@@ -561,12 +575,12 @@ const InspectionHistory = () => {
                   </div>
 
                   <div className="stat-item-large severity" style={{ 
-                    backgroundColor: getSeverityColor(selectedInspection.results?.summary?.severity || 'MEDIUM') + '20',
-                    borderColor: getSeverityColor(selectedInspection.results?.summary?.severity || 'MEDIUM')
+                    backgroundColor: getSeverityColor(selectedInspection.results?.summary?.severity || 'WARN') + '20',
+                    borderColor: getSeverityColor(selectedInspection.results?.summary?.severity || 'WARN')
                   }}>
-                    <span className="stat-icon">📊</span>
+                    <span className="stat-icon">{getSeverityIcon(selectedInspection.results?.summary?.severity || 'WARN')}</span>
                     <div className="stat-content">
-                      <span className="stat-value">{selectedInspection.results?.summary?.severity || 'MEDIUM'}</span>
+                      <span className="stat-value">{selectedInspection.results?.summary?.severity || 'WARN'}</span>
                       <span className="stat-label">심각도</span>
                     </div>
                   </div>
@@ -621,12 +635,7 @@ const InspectionHistory = () => {
                             </div>
                           )}
 
-                          {finding.timestamp && (
-                            <div className="finding-timestamp-modern">
-                              <span className="timestamp-icon">🕐</span>
-                              <span>{formatDateTime(finding.timestamp)}</span>
-                            </div>
-                          )}
+                          {/* timestamp 제거 - 검사 시간은 상위 레벨에서 관리 */}
                         </div>
                       </div>
                     ))}

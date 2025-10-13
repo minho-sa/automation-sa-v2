@@ -186,9 +186,7 @@ const InspectionResultsView = ({ inspectionData, onBackToSelection }) => {
               <div className="finding-footer">
                 <span className="category-tag">{finding.category}</span>
 
-                <span className="timestamp">
-                  {finding.timestamp ? new Date(finding.timestamp).toLocaleString() : ''}
-                </span>
+                {/* timestamp 제거 - 검사 시간은 상위 레벨에서 관리 */}
               </div>
             </div>
           ))

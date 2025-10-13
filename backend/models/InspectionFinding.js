@@ -1,19 +1,17 @@
 /**
- * Inspection Finding Model (단순화됨)
- * 검사 결과 세부 항목 모델 - 핵심 정보만 포함
+ * Inspection Finding Model - CRITICAL/WARN 시스템
+ * 검사 결과 세부 항목 모델 - riskLevel 제거, 검사 항목 severity 상속
  */
 
 class InspectionFinding {
   constructor({
     resourceId,
     resourceType,
-    riskLevel,
     issue,
     recommendation
   }) {
     this.resourceId = resourceId;
     this.resourceType = resourceType;
-    this.riskLevel = riskLevel;
     this.issue = issue;
     this.recommendation = recommendation;
   }
@@ -26,7 +24,6 @@ class InspectionFinding {
     return {
       resourceId: this.resourceId,
       resourceType: this.resourceType,
-      riskLevel: this.riskLevel,
       issue: this.issue,
       recommendation: this.recommendation
     };
@@ -47,21 +44,12 @@ class InspectionFinding {
       errors.push('resourceType is required');
     }
 
-    if (!this.riskLevel) {
-      errors.push('riskLevel is required');
-    }
-
     if (!this.issue) {
       errors.push('issue is required');
     }
 
     if (!this.recommendation) {
       errors.push('recommendation is required');
-    }
-
-    const validRiskLevels = ['PASS', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-    if (!validRiskLevels.includes(this.riskLevel)) {
-      errors.push(`riskLevel must be one of: ${validRiskLevels.join(', ')}`);
     }
 
     return {
@@ -71,41 +59,15 @@ class InspectionFinding {
   }
 
   /**
-   * Finding 요약 통계 생성
+   * Finding 요약 통계 생성 - 단순화
    * @param {Array<InspectionFinding>} findings - Finding 배열
    * @returns {Object} 요약 통계
    */
   static generateSummary(findings) {
-    const summary = {
+    return {
       totalFindings: findings.length,
-      passedChecks: 0,
-      criticalIssues: 0,
-      highRiskIssues: 0,
-      mediumRiskIssues: 0,
-      lowRiskIssues: 0
+      resourcesAffected: [...new Set(findings.map(f => f.resourceId))].length
     };
-
-    findings.forEach(finding => {
-      switch (finding.riskLevel) {
-        case 'PASS':
-          summary.passedChecks++;
-          break;
-        case 'CRITICAL':
-          summary.criticalIssues++;
-          break;
-        case 'HIGH':
-          summary.highRiskIssues++;
-          break;
-        case 'MEDIUM':
-          summary.mediumRiskIssues++;
-          break;
-        case 'LOW':
-          summary.lowRiskIssues++;
-          break;
-      }
-    });
-
-    return summary;
   }
 }
 

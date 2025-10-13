@@ -1,8 +1,8 @@
 /**
- * 검사 항목 매핑 유틸리티
+ * 검사 항목 매핑 유틸리티 - CRITICAL/WARN 두 가지 severity 시스템
  */
 
-import { inspectionItems } from '../data/inspectionItems';
+import { inspectionItems, InspectionResultModel, severityColors, severityIcons } from '../data/inspectionItems';
 
 // 검사 항목 정보 가져오기
 export const getItemInfo = (serviceType, itemId) => {
@@ -28,31 +28,56 @@ export const getItemName = (serviceType, itemId) => {
     return itemInfo?.name || itemId;
 };
 
-// 검사 항목 심각도 가져오기
+// 검사 항목의 기본 severity 가져오기 (CRITICAL 또는 WARN)
 export const getItemSeverity = (serviceType, itemId) => {
-    const itemInfo = getItemInfo(serviceType, itemId);
-    return itemInfo?.severity || 'MEDIUM';
+    return InspectionResultModel.getBaseSeverity(serviceType, itemId);
 };
 
-// 심각도별 색상 가져오기
+// 심각도별 색상 가져오기 (CRITICAL, WARN, PASS)
 export const getSeverityColor = (severity) => {
-    const colors = {
-        'CRITICAL': '#dc2626',
-        'HIGH': '#ea580c',
-        'MEDIUM': '#d97706',
-        'LOW': '#65a30d'
-    };
-    return colors[severity] || '#6b7280';
+    return severityColors[severity] || '#6b7280';
 };
 
-// 심각도별 아이콘 가져오기 (아이콘 없이 깔끔하게)
+// 심각도별 아이콘 가져오기
 export const getSeverityIcon = (severity) => {
-    // 아이콘 없이 색상과 텍스트만으로 구분
-    return '';
+    return severityIcons[severity] || 'ℹ️';
+};
+
+// 검사 결과 상태 결정 (findings 기반)
+export const determineInspectionStatus = (item, baseSeverity) => {
+    return InspectionResultModel.determineStatus(item, baseSeverity);
+};
+
+// 검사 결과를 UI용으로 변환
+export const transformInspectionResults = (results) => {
+    return InspectionResultModel.transformForUI(results);
+};
+
+// 검사 항목의 실제 상태 가져오기 (findings 배열 기반)
+export const getActualStatus = (item) => {
+    const baseSeverity = getItemSeverity(item.serviceType, item.itemId);
+    return determineInspectionStatus(item, baseSeverity);
+};
+
+// 상태별 통계 계산
+export const calculateStatusStats = (inspectionResults) => {
+    const stats = {
+        CRITICAL: 0,
+        WARN: 0,
+        PASS: 0,
+        total: inspectionResults.length
+    };
+
+    inspectionResults.forEach(item => {
+        const status = getActualStatus(item);
+        stats[status]++;
+    });
+
+    return stats;
 };
 
 // 테스트용 함수
 export const testFunction = () => {
-    console.log('Test function works!');
+    console.log('CRITICAL/WARN severity system loaded!');
     return 'test';
 };

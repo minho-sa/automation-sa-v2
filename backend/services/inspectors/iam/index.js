@@ -400,7 +400,6 @@ class IAMInspector extends BaseInspector {
     const finding = new InspectionFinding({
       resourceId: `unknown-item-${targetItem}`,
       resourceType: 'IAMGeneral',
-      riskLevel: 'LOW',
       issue: `알 수 없는 검사 항목 '${targetItem}'이 요청되었습니다`,
       recommendation: '지원되는 검사 항목 중에서 선택하세요. 지원되는 항목: root-access-key, mfa-enabled, unused-credentials, overprivileged-user-policies, overprivileged-role-policies, inline-policies, unused-policies'
     });
@@ -421,10 +420,7 @@ class IAMInspector extends BaseInspector {
 
     const summary = {
       totalResources: this.resourceCount,
-      criticalIssues: this.findings.filter(f => f.riskLevel === 'CRITICAL').length,
-      highRiskIssues: this.findings.filter(f => f.riskLevel === 'HIGH').length,
-      mediumRiskIssues: this.findings.filter(f => f.riskLevel === 'MEDIUM').length,
-      lowRiskIssues: this.findings.filter(f => f.riskLevel === 'LOW').length,
+      totalFindings: this.findings.length,
       partial: true,
       completedChecks: this.getCompletedChecks()
     };

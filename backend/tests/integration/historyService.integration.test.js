@@ -30,7 +30,6 @@ describe('HistoryService Integration Tests', () => {
         {
           resourceId: 'sg-12345678',
           resourceType: 'SecurityGroup',
-          riskLevel: 'HIGH',
           issue: 'Security group allows unrestricted access (0.0.0.0/0) on port 22',
           recommendation: 'Restrict SSH access to specific IP ranges',
           details: {
@@ -48,7 +47,6 @@ describe('HistoryService Integration Tests', () => {
         {
           resourceId: 'sg-87654321',
           resourceType: 'SecurityGroup',
-          riskLevel: 'HIGH',
           issue: 'Security group allows unrestricted access (0.0.0.0/0) on port 3389',
           recommendation: 'Restrict RDP access to specific IP ranges',
           details: {
@@ -66,7 +64,6 @@ describe('HistoryService Integration Tests', () => {
         {
           resourceId: 'i-1234567890abcdef0',
           resourceType: 'Instance',
-          riskLevel: 'MEDIUM',
           issue: 'EC2 instance is not using IMDSv2',
           recommendation: 'Enable IMDSv2 for enhanced security',
           details: {
@@ -141,8 +138,7 @@ describe('HistoryService Integration Tests', () => {
       findings.forEach(finding => {
         expect(finding.resourceId).toBeDefined();
         expect(finding.resourceType).toBeDefined();
-        expect(finding.riskLevel).toBeDefined();
-        expect(['HIGH', 'MEDIUM', 'LOW']).toContain(finding.riskLevel);
+        // riskLevel 제거 - 새로운 시스템에서는 검사 항목 레벨에서 severity 결정
         expect(finding.issue).toBeDefined();
         expect(finding.recommendation).toBeDefined();
         expect(finding.details).toBeDefined();

@@ -355,10 +355,7 @@ class EC2Inspector extends BaseInspector {
 
     const summary = {
       totalResources: this.resourceCount,
-      criticalIssues: this.findings.filter(f => f.riskLevel === 'CRITICAL').length,
-      highRiskIssues: this.findings.filter(f => f.riskLevel === 'HIGH').length,
-      mediumRiskIssues: this.findings.filter(f => f.riskLevel === 'MEDIUM').length,
-      lowRiskIssues: this.findings.filter(f => f.riskLevel === 'LOW').length,
+      totalFindings: this.findings.length,
       partial: true,
       completedChecks: this.getCompletedChecks()
     };

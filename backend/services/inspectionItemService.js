@@ -38,7 +38,7 @@ class InspectionItemService {
 
         totalResources: itemResult.totalResources || 0,
         issuesFound: itemResult.issuesFound || 0,
-        riskLevel: itemResult.riskLevel || 'LOW',
+        summary: itemResult.summary || { findingsCount: 0 },
         score: itemResult.score || 100,
 
         findings: itemResult.findings || []
@@ -298,15 +298,12 @@ class InspectionItemService {
     }
 
     const issuesFound = itemResult.issuesFound || 0;
-    const riskLevel = itemResult.riskLevel || 'LOW';
-
+    // 단순화: findings가 있으면 FAIL, 없으면 PASS
     if (issuesFound === 0) {
       return 'PASS';
     }
 
-    if (riskLevel === 'CRITICAL' || riskLevel === 'HIGH') {
-      return 'FAIL';
-    }
+    return 'FAIL';
 
     return 'WARNING';
   }
@@ -337,7 +334,7 @@ class InspectionItemService {
           category: 'security', // 기본 카테고리
           totalResources: results.findings.length,
           issuesFound: results.findings.length,
-          riskLevel: this.calculateMaxRiskLevel(results.findings),
+          summary: this.createItemSummary(results.findings),
           findings: results.findings
         };
 
@@ -360,7 +357,7 @@ class InspectionItemService {
           category: itemData.category,
           totalResources: itemData.totalResources,
           issuesFound: itemData.findings.length,
-          riskLevel: itemData.maxRiskLevel,
+          summary: this.createItemSummary(itemData.findings),
           score: itemData.score,
           findings: itemData.findings,
           recommendations: itemData.recommendations
@@ -456,18 +453,14 @@ class InspectionItemService {
           // name 제거 - 프론트엔드에서 매핑
           category: category,
           totalResources: 0,
-          findings: [],
-          maxRiskLevel: 'LOW'
+          findings: []
         };
       }
 
       itemResults[itemId].findings.push(finding);
       itemResults[itemId].totalResources++;
 
-      // 최대 위험도 업데이트
-      if (this.getRiskPriority(finding.riskLevel) > this.getRiskPriority(itemResults[itemId].maxRiskLevel)) {
-        itemResults[itemId].maxRiskLevel = finding.riskLevel;
-      }
+      // riskLevel 제거 - 새로운 시스템에서는 검사 항목의 severity를 상속
 
       // 점수 계산 (간단한 로직)
       itemResults[itemId].score = Math.max(0, itemResults[itemId].score - (finding.riskScore || 10));
@@ -499,18 +492,15 @@ class InspectionItemService {
   }
 
   /**
-   * 최대 위험도 계산
-   * @param {Array} findings - 검사 결과 목록
-   * @returns {string} 최대 위험도
+   * 검사 항목 결과 요약 생성 - 단순화
+   * @param {Array} findings - 검사 결과 배열
+   * @returns {Object} 검사 항목 결과 요약
    */
-  calculateMaxRiskLevel(findings) {
-    let maxRiskLevel = 'LOW';
-    findings.forEach(finding => {
-      if (this.getRiskPriority(finding.riskLevel) > this.getRiskPriority(maxRiskLevel)) {
-        maxRiskLevel = finding.riskLevel;
-      }
-    });
-    return maxRiskLevel;
+  createItemSummary(findings) {
+    return {
+      findingsCount: findings.length,
+      resourcesAffected: [...new Set(findings.map(f => f.resourceId))].length
+    };
   }
 
   /**
@@ -526,20 +516,7 @@ class InspectionItemService {
     return score;
   }
 
-  /**
-   * 위험도 우선순위 반환
-   * @param {string} riskLevel - 위험도
-   * @returns {number} 우선순위 (높을수록 위험)
-   */
-  getRiskPriority(riskLevel) {
-    const priorities = {
-      'LOW': 1,
-      'MEDIUM': 2,
-      'HIGH': 3,
-      'CRITICAL': 4
-    };
-    return priorities[riskLevel] || 0;
-  }
+  // severity 관련 메서드 제거 - 프론트엔드에서만 처리
 }
 
 module.exports = new InspectionItemService();

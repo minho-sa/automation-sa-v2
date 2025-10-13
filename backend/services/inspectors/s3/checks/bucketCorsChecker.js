@@ -49,7 +49,6 @@ class BucketCorsChecker {
         const finding = new InspectionFinding({
           resourceId: bucket.Name,
           resourceType: 'S3Bucket',
-          riskLevel: 'MEDIUM',
           issue: 'S3 버킷 CORS 설정 - 와일드카드 오리진 허용',
           recommendation: '보안을 위해 특정 도메인만 허용하도록 CORS 설정을 제한하세요'
         });

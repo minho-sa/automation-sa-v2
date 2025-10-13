@@ -26,7 +26,6 @@ class MockInspector extends BaseInspector {
     const finding1 = new InspectionFinding({
       resourceId: 'resource-1',
       resourceType: 'MockResource',
-      riskLevel: 'HIGH',
       issue: 'Mock high risk issue',
       recommendation: 'Fix this issue'
     });
@@ -34,7 +33,6 @@ class MockInspector extends BaseInspector {
     const finding2 = new InspectionFinding({
       resourceId: 'resource-2',
       resourceType: 'MockResource',
-      riskLevel: 'MEDIUM',
       issue: 'Mock medium risk issue',
       recommendation: 'Consider fixing this'
     });
