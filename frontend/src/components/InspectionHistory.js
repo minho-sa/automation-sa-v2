@@ -143,7 +143,7 @@ const InspectionHistory = () => {
       setHistoryData([]);
       setPagination({ hasMore: false, lastEvaluatedKey: null });
     } finally {
-      setLoading(false);s
+      setLoading(false);
     }
   };
 
