@@ -72,16 +72,6 @@ router.get('/:id', inspectionController.getInspectionDetails);
  */
 router.get('/:id/status', inspectionController.getInspectionStatus);
 
-/**
- * GET /api/inspections/:id/consistency
- * 검사 데이터 일관성 검증
- */
-router.get('/:id/consistency', inspectionController.validateDataConsistency);
-
-/**
- * POST /api/inspections/:id/recover
- * 검사 데이터 일관성 복구
- */
-router.post('/:id/recover', inspectionController.recoverDataConsistency);
+// dataConsistency 관련 라우트 제거 - 단순화
 
 module.exports = router;

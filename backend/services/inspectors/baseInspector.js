@@ -266,7 +266,7 @@ class BaseInspector {
   }
 
   /**
-   * 개별 항목 검사 결과 생성 (TransactionService용)
+   * 개별 항목 검사 결과 생성
    * @param {Object} inspectionConfig - 검사 설정
    * @returns {Array} 항목 검사 결과 배열
    */
@@ -295,7 +295,7 @@ class BaseInspector {
   }
 
   /**
-   * 전체 검사 결과를 항목별로 분할 (TransactionService용)
+   * 전체 검사 결과를 항목별로 분할
    * @returns {Array} 항목 검사 결과 배열
    */
   buildFullInspectionItemResults() {

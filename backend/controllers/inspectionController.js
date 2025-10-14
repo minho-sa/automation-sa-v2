@@ -575,106 +575,7 @@ const getItemInspectionHistory = async (req, res) => {
     }
 };
 
-/**
- * 데이터 일관성 검증
- * GET /api/inspections/:id/consistency
- */
-const validateDataConsistency = async (req, res) => {
-    try {
-        const { id: inspectionId } = req.params;
-        const customerId = req.user.userId;
-
-        if (!inspectionId) {
-            return res.status(400).json(ApiResponse.error({
-                code: 'MISSING_INSPECTION_ID',
-                message: 'Inspection ID is required',
-                details: 'Please provide a valid inspection ID'
-            }));
-        }
-
-        const dataConsistencyService = require('../services/dataConsistencyService');
-        const result = await dataConsistencyService.validateInspectionConsistency(
-            customerId, 
-            inspectionId
-        );
-
-        if (!result.success) {
-            return res.status(500).json(ApiResponse.error({
-                code: 'CONSISTENCY_VALIDATION_FAILED',
-                message: 'Failed to validate data consistency',
-                details: result.error
-            }));
-        }
-
-        res.status(200).json(ApiResponse.success({
-            message: 'Data consistency validation completed',
-            inspectionId,
-            isConsistent: result.isConsistent,
-            issues: result.issues || [],
-            analysis: result.analysis,
-            canRecover: result.canRecover
-        }));
-
-    } catch (error) {
-        console.error('Validate data consistency error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while validating data consistency'
-        }));
-    }
-};
-
-/**
- * 데이터 일관성 복구
- * POST /api/inspections/:id/recover
- */
-const recoverDataConsistency = async (req, res) => {
-    try {
-        const { id: inspectionId } = req.params;
-        const customerId = req.user.userId;
-        const recoveryOptions = req.body || {};
-
-        if (!inspectionId) {
-            return res.status(400).json(ApiResponse.error({
-                code: 'MISSING_INSPECTION_ID',
-                message: 'Inspection ID is required',
-                details: 'Please provide a valid inspection ID'
-            }));
-        }
-
-        const dataConsistencyService = require('../services/dataConsistencyService');
-        const result = await dataConsistencyService.recoverDataConsistency(
-            customerId, 
-            inspectionId,
-            recoveryOptions
-        );
-
-        if (!result.success) {
-            return res.status(500).json(ApiResponse.error({
-                code: 'CONSISTENCY_RECOVERY_FAILED',
-                message: 'Failed to recover data consistency',
-                details: result.error
-            }));
-        }
-
-        res.status(200).json(ApiResponse.success({
-            message: result.message,
-            inspectionId,
-            actionsPerformed: result.actionsPerformed,
-            finalConsistencyStatus: result.finalConsistencyStatus,
-            remainingIssues: result.remainingIssues
-        }));
-
-    } catch (error) {
-        console.error('Recover data consistency error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while recovering data consistency'
-        }));
-    }
-};
+// dataConsistencyService 관련 API 제거 - 단순화
 
 module.exports = {
     startInspection,
@@ -685,7 +586,5 @@ module.exports = {
     getServiceItemStatus,
     getAllItemStatus,
     getItemHistory,
-    getItemInspectionHistory,
-    validateDataConsistency,
-    recoverDataConsistency
+    getItemInspectionHistory
 };
