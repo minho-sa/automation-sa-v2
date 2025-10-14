@@ -96,7 +96,7 @@ module.exports = {
     },
 
     /**
-     * HISTORY 아이템 키 생성 (시간순 정렬)
+     * HISTORY 아이템 키 생성 (서비스별 시간순 정렬 최적화)
      * @param {string} serviceType - 서비스 타입
      * @param {string} itemId - 항목 ID
      * @param {number} timestamp - 검사 시간 (역순 정렬을 위해 변환)
@@ -106,11 +106,12 @@ module.exports = {
     createHistoryKey(serviceType, itemId, timestamp, inspectionId) {
       // 시간 역순 정렬을 위해 timestamp를 뒤집음 (최신이 먼저 오도록)
       const reversedTimestamp = (9999999999999 - timestamp).toString().padStart(13, '0');
-      return `HISTORY#${serviceType}#${itemId}#${reversedTimestamp}#${inspectionId}`;
+      // 서비스별 시간순 정렬을 위해 timestamp를 itemId보다 앞에 배치
+      return `HISTORY#${serviceType}#${reversedTimestamp}#${itemId}#${inspectionId}`;
     },
 
     /**
-     * itemKey에서 정보 추출
+     * itemKey에서 정보 추출 (새로운 구조 지원)
      * @param {string} itemKey - 아이템 키
      * @returns {Object} 파싱된 정보
      */
@@ -125,14 +126,15 @@ module.exports = {
           itemId: parts[2]
         };
       } else if (recordType === 'HISTORY') {
-        const reversedTimestamp = parseInt(parts[3]);
+        // 새로운 구조: HISTORY#{serviceType}#{timestamp}#{itemId}#{inspectionId}
+        const reversedTimestamp = parseInt(parts[2]);
         const originalTimestamp = 9999999999999 - reversedTimestamp;
 
         return {
           recordType: 'HISTORY',
           serviceType: parts[1],
-          itemId: parts[2],
           timestamp: originalTimestamp,
+          itemId: parts[3],
           inspectionId: parts[4]
         };
       }

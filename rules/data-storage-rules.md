@@ -44,10 +44,10 @@ AWS 보안 검사 시스템의 **데이터 저장 및 조회에 대한 구체적
 - 특정 검사 항목의 최신 상태 빠른 조회
 - 대시보드 현재 상태 표시
 
-### 📈 **HISTORY 레코드** (히스토리)
+### 📈 **HISTORY 레코드** (히스토리) - 서비스별 시간순 최적화
 ```
-형식: "HISTORY#{serviceType}#{itemId}#{reversedTimestamp}#{inspectionId}"
-예시: "HISTORY#EC2#dangerous-ports#9999998359004800#insp-456"
+형식: "HISTORY#{serviceType}#{reversedTimestamp}#{itemId}#{inspectionId}"
+예시: "HISTORY#EC2#9999998359004800#dangerous-ports#insp-456"
 ```
 
 **reversedTimestamp 계산**:
@@ -56,7 +56,7 @@ const reversedTimestamp = (9999999999999 - timestamp).toString().padStart(13, '0
 ```
 
 **용도**:
-- 시간순 히스토리 조회 (최신이 먼저)
+- **서비스별 시간순 히스토리 조회** (최신이 먼저)
 - 특정 검사의 모든 항목 결과 조회
 
 ---
