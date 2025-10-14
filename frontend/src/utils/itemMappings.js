@@ -76,8 +76,17 @@ export const calculateStatusStats = (inspectionResults) => {
     return stats;
 };
 
+// 검사 결과 요약 생성 (백엔드에서 제거된 기능을 프론트엔드에서 처리)
+export const generateItemSummary = (findings) => {
+    return {
+        totalFindings: findings.length,
+        resourcesAffected: [...new Set(findings.map(f => f.resourceId))].length,
+        issuesFound: findings.length
+    };
+};
+
 // 테스트용 함수
 export const testFunction = () => {
-    console.log('CRITICAL/WARN severity system loaded!');
+    console.log('Simplified data model loaded!');
     return 'test';
 };

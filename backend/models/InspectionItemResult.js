@@ -5,29 +5,29 @@
 
 const InspectionItemResultSchema = {
   // Primary Key
-  customerId: 'string', // 고객 ID (HASH)
-  itemKey: 'string', // 아이템 식별키 (RANGE) - 아래 구조 참조
+  customerId: 'string', // 고객 ID (HASH) - 사용자별 파티션
+  itemKey: 'string', // 아이템 식별키 (RANGE) - Latest 빠른 조회용
 
   // itemKey 구조:
   // LATEST: "LATEST#{serviceType}#{itemId}"
   // HISTORY: "HISTORY#{serviceType}#{itemId}#{timestamp}#{inspectionId}"
 
-  // 검사 정보
-  serviceType: 'string', // EC2, RDS, S3, IAM
-  itemId: 'string', // dangerous-ports, bucket-encryption 등
-  category: 'string', // security, performance, cost
+  // 핵심 데이터
+  serviceType: 'string', // EC2, RDS, S3, IAM - 서비스별 분류
+  itemId: 'string', // dangerous-ports, bucket-encryption 등 - 프론트 매핑용
+  category: 'string', // security, performance, cost - 카테고리별 분류
+  findings: 'list', // 발견된 문제 배열 - 핵심 데이터
 
-  // 검사 결과
-  inspectionId: 'string', // 검사 ID (HISTORY만 필요, LATEST는 선택적)
-  inspectionTime: 'number', // 검사 시간 (timestamp)
-  status: 'string', // PASS, FAIL, WARNING, NOT_CHECKED
+  // 메타데이터
+  inspectionId: 'string', // 검사 ID (HISTORY 레코드만)
+  inspectionTime: 'number' // 검사 시간 (Unix timestamp)
 
-  // 결과 요약
-  totalResources: 'number', // 검사된 리소스 수
-  issuesFound: 'number', // 발견된 문제 수
-
-  // 상세 결과
-  findings: 'list' // 발견된 문제들
+  // 제거된 필드들 (프론트엔드에서 계산):
+  // - issuesFound: findings.length로 계산
+  // - status: findings 유무 + baseSeverity로 결정
+  // - totalResources: 실제 사용되지 않음
+  // - score: 복잡한 점수 계산 불필요
+  // - summary: 프론트엔드에서 생성
 };
 
 module.exports = {

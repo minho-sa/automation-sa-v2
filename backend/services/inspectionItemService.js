@@ -26,21 +26,12 @@ class InspectionItemService {
     try {
       const now = Date.now();
 
-      // 공통 아이템 데이터
+      // 단순화된 아이템 데이터 (핵심 정보만)
       const baseItem = {
         customerId,
         serviceType: itemResult.serviceType,
         itemId: itemResult.itemId,
-        category: itemResult.category,
-
-        // 기존 필드명 제거됨 - inspectionId, inspectionTime으로 대체
-        status: this.determineStatus(itemResult),
-
-        totalResources: itemResult.totalResources || 0,
-        issuesFound: itemResult.issuesFound || 0,
-        summary: itemResult.summary || { findingsCount: 0 },
-        score: itemResult.score || 100,
-
+        category: itemResult.category || 'security',
         findings: itemResult.findings || []
       };
 
@@ -67,7 +58,8 @@ class InspectionItemService {
       const latestItem = {
         ...baseItem,
         itemKey: latestKey,
-        inspectionTime: now
+        inspectionTime: now,
+        lastInspectionId: inspectionId  // 마지막 검사 ID 참조용
       };
 
       // 두 레코드 모두 저장
@@ -292,21 +284,7 @@ class InspectionItemService {
    * @param {Object} itemResult - 검사 항목 결과
    * @returns {string} 상태 (PASS, FAIL, WARNING, NOT_CHECKED)
    */
-  determineStatus(itemResult) {
-    if (!itemResult.totalResources || itemResult.totalResources === 0) {
-      return 'NOT_CHECKED';
-    }
-
-    const issuesFound = itemResult.issuesFound || 0;
-    // 단순화: findings가 있으면 FAIL, 없으면 PASS
-    if (issuesFound === 0) {
-      return 'PASS';
-    }
-
-    return 'FAIL';
-
-    return 'WARNING';
-  }
+  // determineStatus 메서드 제거 - 프론트엔드에서 findings 기반으로 상태 결정
 
   /**
    * 검사 완료 시 전체 결과를 항목별로 분해하여 저장
@@ -334,7 +312,7 @@ class InspectionItemService {
           category: 'security', // 기본 카테고리
           totalResources: results.findings.length,
           issuesFound: results.findings.length,
-          summary: this.createItemSummary(results.findings),
+          // summary 제거 - 프론트엔드에서 생성
           findings: results.findings
         };
 
@@ -357,7 +335,7 @@ class InspectionItemService {
           category: itemData.category,
           totalResources: itemData.totalResources,
           issuesFound: itemData.findings.length,
-          summary: this.createItemSummary(itemData.findings),
+          // summary 제거 - 프론트엔드에서 생성
           score: itemData.score,
           findings: itemData.findings,
           recommendations: itemData.recommendations
@@ -491,17 +469,7 @@ class InspectionItemService {
     return 'other';
   }
 
-  /**
-   * 검사 항목 결과 요약 생성 - 단순화
-   * @param {Array} findings - 검사 결과 배열
-   * @returns {Object} 검사 항목 결과 요약
-   */
-  createItemSummary(findings) {
-    return {
-      findingsCount: findings.length,
-      resourcesAffected: [...new Set(findings.map(f => f.resourceId))].length
-    };
-  }
+  // createItemSummary 메서드 제거 - 프론트엔드에서 findings 기반으로 요약 생성
 
   /**
    * 점수 계산
