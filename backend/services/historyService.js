@@ -20,6 +20,8 @@ const { dynamoDBDocClient } = require('../config/aws');
  * - 항목별 검사 이력 조회
  */
 class HistoryService {
+  // 페이지네이션 설정 - 여기서만 수정하면 됨
+  static DEFAULT_PAGE_SIZE = 10;
   constructor() {
     this.client = dynamoDBDocClient;
     // 단일 테이블 구조: InspectionItemResults 테이블만 사용
@@ -134,7 +136,8 @@ class HistoryService {
    */
   async getInspectionHistoryList(customerId, options = {}) {
     try {
-      const { limit = 20, serviceType } = options;
+      const { serviceType } = options;
+      const limit = HistoryService.DEFAULT_PAGE_SIZE; // 항상 고정값 사용
 
       let keyConditionExpression = 'customerId = :customerId AND begins_with(itemKey, :history)';
       let filterExpression = '';
@@ -218,11 +221,12 @@ class HistoryService {
   async getItemInspectionHistory(customerId, options = {}) {
     try {
       const {
-        limit = 10,
         serviceType,
         historyMode = 'history',
         lastEvaluatedKey
       } = options;
+      
+      const limit = HistoryService.DEFAULT_PAGE_SIZE; // 항상 고정값 사용
 
       console.log(`🔍 [HistoryService] Paginated history query:`, {
         service: serviceType || 'ALL',

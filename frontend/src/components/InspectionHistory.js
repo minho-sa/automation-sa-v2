@@ -92,7 +92,7 @@ const InspectionHistory = () => {
       setError(null);
 
       const params = {
-        limit: 10, // 페이지당 10개로 제한
+        // limit 파라미터 제거 - 백엔드가 적절한 양을 결정
         ...(filters.serviceType !== 'all' && { serviceType: filters.serviceType }),
         historyMode: filters.historyMode
       };
@@ -129,7 +129,8 @@ const InspectionHistory = () => {
           newItems: newData.length,
           totalItems: finalData.length,
           hasMore: result.data.hasMore,
-          scannedCount: result.data.scannedCount
+          scannedCount: result.data.scannedCount,
+          actualPageSize: newData.length // 실제 받은 데이터 개수
         });
       } else {
         throw new Error(result.error?.message || '히스토리를 불러오는데 실패했습니다.');
@@ -344,6 +345,8 @@ const InspectionHistory = () => {
           <option value="IAM">👤 IAM</option>
         </select>
 
+
+
         <button
           className="btn-mini"
           onClick={() => loadInspectionHistory()}
@@ -361,7 +364,12 @@ const InspectionHistory = () => {
               historyMode: 'history'
             };
             setFilters(resetFilters);
-            setPagination({ hasMore: false, lastEvaluatedKey: null, loading: false });
+            setPagination(prev => ({ 
+              ...prev, 
+              hasMore: false, 
+              lastEvaluatedKey: null, 
+              loading: false 
+            }));
             setHistoryData([]); // 기존 데이터 클리어
           }}
           disabled={loading || pagination.loading}
@@ -490,7 +498,7 @@ const InspectionHistory = () => {
               ) : (
                 <>
                   <span className="load-icon-modern">📄</span>
-                  더 많은 기록 보기 (10개씩)
+                  더 많은 기록 보기
                 </>
               )}
             </button>

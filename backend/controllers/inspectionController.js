@@ -158,24 +158,12 @@ const getInspectionDetails = async (req, res) => {
 const getInspectionHistory = async (req, res) => {
     try {
         const customerId = req.user.userId;
-        const { 
-            serviceType, 
-            limit = 20
-        } = req.query;
+        const { serviceType } = req.query;
 
-        // 쿼리 파라미터 검증
-        const queryLimit = Math.min(parseInt(limit) || 20, 100); // 최대 100개로 제한
-
-        console.log(`🔍 [InspectionController] Simple inspection history request - Service: ${serviceType || 'ALL'}, Limit: ${queryLimit}`);
+        console.log(`🔍 [InspectionController] Simple inspection history request - Service: ${serviceType || 'ALL'}`);
 
         // 검사 이력 조회 (단일 테이블 구조)
-        const result = await historyService.getInspectionHistoryList(
-            customerId,
-            {
-                limit: queryLimit,
-                serviceType
-            }
-        );
+        const result = await historyService.getInspectionHistoryList(customerId, { serviceType });
 
         if (!result.success) {
             return res.status(500).json(ApiResponse.error({
@@ -515,30 +503,21 @@ const getItemInspectionHistory = async (req, res) => {
         const customerId = req.user.userId;
         const { 
             serviceType, 
-            limit = 10,
             historyMode = 'history',
             lastEvaluatedKey
         } = req.query;
 
-        // 쿼리 파라미터 검증
-        const queryLimit = Math.min(parseInt(limit) || 10, 20); // 최대 20개로 제한
-
         console.log(`🔍 [InspectionController] Paginated history request:`, {
             service: serviceType || 'ALL',
-            limit: queryLimit,
             hasLastKey: !!lastEvaluatedKey
         });
 
         // 항목별 검사 이력 조회 (페이지네이션 지원)
-        const result = await historyService.getItemInspectionHistory(
-            customerId,
-            {
-                limit: queryLimit,
-                serviceType,
-                historyMode,
-                lastEvaluatedKey
-            }
-        );
+        const result = await historyService.getItemInspectionHistory(customerId, {
+            serviceType,
+            historyMode,
+            lastEvaluatedKey
+        });
 
         if (!result.success) {
             return res.status(500).json(ApiResponse.error({

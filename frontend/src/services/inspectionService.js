@@ -26,24 +26,24 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  */
 const withRetry = async (apiCall, maxAttempts = MAX_RETRY_ATTEMPTS, delayMs = RETRY_DELAY) => {
   let lastError;
-  
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await apiCall();
     } catch (error) {
       lastError = error;
-      
+
       // 마지막 시도가 아니고, 재시도 가능한 에러인 경우에만 재시도
       if (attempt < maxAttempts && isRetryableError(error)) {
         await delay(delayMs * attempt); // 지수 백오프
         continue;
       }
-      
+
       // 재시도 불가능한 에러이거나 마지막 시도인 경우 에러 던지기
       break;
     }
   }
-  
+
   throw lastError;
 };
 
@@ -57,7 +57,7 @@ const isRetryableError = (error) => {
   if (!error.response) return true; // 네트워크 에러
   if (error.code === 'ECONNABORTED') return true; // 타임아웃
   if (error.response.status >= 500) return true; // 서버 에러
-  
+
   // 4xx 클라이언트 에러는 재시도하지 않음 (401, 403, 404 등)
   return false;
 };
@@ -97,24 +97,23 @@ export const inspectionService = {
    * Requirements: 1.1 - 고객이 검사 이력을 요청
    * @param {Object} params - 쿼리 파라미터
    * @param {string} params.serviceType - 서비스 타입 필터 (선택사항)
-   * @param {number} params.limit - 조회할 항목 수 (기본값: 20)
    * @returns {Promise<Object>} 검사 이력 목록
    */
   getInspectionHistory: async (params = {}) => {
     return withRetry(async () => {
       const queryParams = new URLSearchParams();
-      
+
       // 허용된 파라미터만 추가
-      const allowedParams = ['serviceType', 'limit'];
+      const allowedParams = ['serviceType'];
       Object.entries(params).forEach(([key, value]) => {
         if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
           queryParams.append(key, value);
         }
       });
-      
+
       const queryString = queryParams.toString();
       const url = queryString ? `/inspections/history?${queryString}` : '/inspections/history';
-      
+
       const response = await api.get(url);
       return response.data;
     });
@@ -188,7 +187,6 @@ export const inspectionService = {
    * 항목별 검사 이력 조회 (페이지네이션 지원)
    * @param {Object} params - 쿼리 파라미터
    * @param {string} params.serviceType - 서비스 타입 필터 (선택사항)
-   * @param {number} params.limit - 조회할 항목 수 (기본값: 10)
    * @param {string} params.historyMode - 히스토리 모드 ('history' 또는 'latest')
    * @param {string} params.lastEvaluatedKey - 페이지네이션 키 (선택사항)
    * @returns {Promise<Object>} 항목별 검사 이력 목록
@@ -196,24 +194,23 @@ export const inspectionService = {
   getItemInspectionHistory: async (params = {}) => {
     return withRetry(async () => {
       const queryParams = new URLSearchParams();
-      
+
       // 허용된 파라미터만 추가 (페이지네이션 키 포함)
-      const allowedParams = ['serviceType', 'limit', 'historyMode', 'lastEvaluatedKey'];
+      const allowedParams = ['serviceType', 'historyMode', 'lastEvaluatedKey'];
       Object.entries(params).forEach(([key, value]) => {
         if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
           queryParams.append(key, value);
         }
       });
-      
+
       const queryString = queryParams.toString();
       const url = queryString ? `/inspections/items/history?${queryString}` : '/inspections/items/history';
-      
+
       console.log('🔍 [InspectionService] Calling paginated API:', {
         url: url.split('?')[0],
-        hasLastKey: !!params.lastEvaluatedKey,
-        limit: params.limit || 10
+        hasLastKey: !!params.lastEvaluatedKey
       });
-      
+
       const response = await api.get(url);
       return response.data;
     });
@@ -234,7 +231,7 @@ export const inspectionService = {
    * @returns {Object} 모니터링 제어 객체
    */
   startWebSocketMonitoring: async (inspectionId, callbacks = {}, options = {}) => {
-    
+
     const {
       onProgress,
       onStepChange,
@@ -259,7 +256,7 @@ export const inspectionService = {
     try {
       // Ensure WebSocket connection
       const token = webSocketService.getStoredToken();
-      
+
       if (!token) {
         throw new Error('No authentication token available for WebSocket connection');
       }
@@ -306,7 +303,7 @@ export const inspectionService = {
       });
 
     } catch (error) {
-      
+
       if (onError) {
         onError({
           code: 'WEBSOCKET_CONNECTION_FAILED',
@@ -314,20 +311,20 @@ export const inspectionService = {
           originalError: error
         });
       }
-      return { stop: () => {} };
+      return { stop: () => { } };
     }
 
     const handleProgressUpdate = (data, timestamp) => {
       lastUpdateTime = timestamp;
       const progress = data.progress || {};
-      
+
       // Reset stagnant count on progress update
       stagnantCount = 0;
-      
+
       // Progress change detection
       if (progress.percentage !== lastPercentage) {
         lastPercentage = progress.percentage;
-        
+
         // Update progress history
         progressHistory.push({
           timestamp,
@@ -335,12 +332,12 @@ export const inspectionService = {
           step: progress.currentStep,
           resourcesProcessed: progress.resourcesProcessed
         });
-        
+
         // Keep only recent 20 entries
         if (progressHistory.length > 20) {
           progressHistory.shift();
         }
-        
+
         if (onProgress) {
           onProgress({
             percentage: progress.percentage,
@@ -354,12 +351,12 @@ export const inspectionService = {
           });
         }
       }
-      
+
       // Step change detection
       if (progress.currentStep !== lastStep) {
         const previousStep = lastStep;
         lastStep = progress.currentStep;
-        
+
         if (onStepChange) {
           onStepChange({
             currentStep: progress.currentStep,
@@ -370,7 +367,7 @@ export const inspectionService = {
           });
         }
       }
-      
+
       // Time information update
       if (onTimeUpdate) {
         const elapsedTime = timestamp - (data.startTime || startTime);
@@ -386,7 +383,7 @@ export const inspectionService = {
 
     const handleStatusChange = (data, timestamp) => {
       lastUpdateTime = timestamp;
-      
+
       // Handle step changes from status updates
       if (data.stepChange) {
         if (onStepChange) {
@@ -405,9 +402,9 @@ export const inspectionService = {
       if (!isActive) {
         return;
       }
-      
+
       isActive = false;
-      
+
       // 완료 시 진행률을 100%로 업데이트
       if (onProgress) {
         onProgress({
@@ -418,7 +415,7 @@ export const inspectionService = {
           resourcesProcessed: data.resourcesProcessed || null
         });
       }
-      
+
       if (onComplete) {
         const totalDuration = timestamp - startTime;
         onComplete({
@@ -429,7 +426,7 @@ export const inspectionService = {
           progressHistory: [...progressHistory]
         });
       }
-      
+
       // Cleanup
       cleanup();
     };
@@ -438,14 +435,14 @@ export const inspectionService = {
       // Monitor for stagnation
       const checkStagnation = () => {
         if (!isActive) return;
-        
+
         const now = Date.now();
         const timeSinceLastUpdate = now - lastUpdateTime;
-        
+
         // If no update for more than 10 seconds, increment stagnant count
         if (timeSinceLastUpdate > 10000) {
           stagnantCount++;
-          
+
           if (stagnantCount >= stagnantThreshold && onStagnant) {
             onStagnant({
               stagnantCount,
@@ -455,20 +452,20 @@ export const inspectionService = {
             });
           }
         }
-        
+
         // Schedule next check
         if (isActive) {
           setTimeout(checkStagnation, 5000); // Check every 5 seconds
         }
       };
-      
+
       // Start stagnation checking
       setTimeout(checkStagnation, 10000); // Start after 10 seconds
     };
 
     const cleanup = () => {
       isActive = false;
-      
+
       if (unsubscribe) {
         unsubscribe();
         unsubscribe = null;
@@ -498,15 +495,15 @@ export const inspectionService = {
  */
 const calculateProgressVelocity = (history) => {
   if (history.length < 2) return null;
-  
+
   const recent = history.slice(-5); // 최근 5개 포인트 사용
   if (recent.length < 2) return null;
-  
+
   const timeDiff = recent[recent.length - 1].timestamp - recent[0].timestamp;
   const progressDiff = recent[recent.length - 1].percentage - recent[0].percentage;
-  
+
   if (timeDiff <= 0) return null;
-  
+
   // percentage per minute
   return (progressDiff / timeDiff) * 60000;
 };
@@ -518,17 +515,17 @@ const calculateProgressVelocity = (history) => {
  */
 const calculateProgressTrend = (history) => {
   if (history.length < 3) return 'unknown';
-  
+
   const recent = history.slice(-3);
   const velocity1 = (recent[1].percentage - recent[0].percentage) / (recent[1].timestamp - recent[0].timestamp);
   const velocity2 = (recent[2].percentage - recent[1].percentage) / (recent[2].timestamp - recent[1].timestamp);
-  
+
   const velocityChange = velocity2 - velocity1;
-  
+
   if (Math.abs(velocityChange) < 0.0001) return 'steady';
   if (velocityChange > 0.0001) return 'accelerating';
   if (velocityChange < -0.0001) return 'decelerating';
-  
+
   return 'stagnant';
 };
 
@@ -539,12 +536,12 @@ const calculateProgressTrend = (history) => {
  */
 const calculateAverageVelocity = (history) => {
   if (history.length < 2) return null;
-  
+
   const totalTime = history[history.length - 1].timestamp - history[0].timestamp;
   const totalProgress = history[history.length - 1].percentage - history[0].percentage;
-  
+
   if (totalTime <= 0) return null;
-  
+
   return (totalProgress / totalTime) * 60000; // percentage per minute
 };
 
