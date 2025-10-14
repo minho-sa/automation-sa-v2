@@ -461,11 +461,9 @@ class HistoryService {
       }
       
       services[serviceType][itemId] = {
-        status: item.status,
+        // status 필드 제거 - 프론트엔드에서 findings 기반으로 계산
         inspectionTime: item.inspectionTime,
-        inspectionId: item.inspectionId,
-        issuesFound: item.issuesFound || (item.findings ? item.findings.length : 0),
-        resourcesScanned: item.resourcesScanned || 1,
+        inspectionId: item.inspectionId || item.lastInspectionId,
         findings: item.findings || []
       };
     });

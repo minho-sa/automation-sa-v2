@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { inspectionItems, severityColors, severityIcons } from '../data/inspectionItems';
+import { getItemSeverity } from '../utils/itemMappings';
 import { inspectionService } from '../services';
 import './ServiceInspectionSelector.css';
 
@@ -14,6 +15,26 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
   // 컴포넌트 마운트 시 모든 검사 항목 상태 로드
   useEffect(() => {
     loadAllItemStatuses();
+    
+    // WebSocket 검사 완료 이벤트 리스너 추가
+    const handleInspectionComplete = () => {
+      console.log('🔄 [ServiceInspectionSelector] All inspections completed, refreshing status');
+      loadAllItemStatuses();
+    };
+    
+    const handleInspectionItemComplete = () => {
+      console.log('🔄 [ServiceInspectionSelector] Individual inspection completed, refreshing status');
+      loadAllItemStatuses();
+    };
+    
+    // 전역 이벤트 리스너 등록 (검사 완료 시 상태 새로고침)
+    window.addEventListener('inspectionCompleted', handleInspectionComplete);
+    window.addEventListener('inspectionItemCompleted', handleInspectionItemComplete);
+    
+    return () => {
+      window.removeEventListener('inspectionCompleted', handleInspectionComplete);
+      window.removeEventListener('inspectionItemCompleted', handleInspectionItemComplete);
+    };
   }, []);
 
   // 모든 검사 항목 상태 로드
@@ -78,17 +99,29 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     setSelectedItems(newSelected);
   };
 
-  // 검사 항목의 최근 상태 가져오기
+  // 검사 항목의 최근 상태 가져오기 (새로운 모델 적용)
   const getItemStatus = (serviceType, itemId) => {
     const serviceStatuses = itemStatuses[serviceType] || {};
-    const status = serviceStatuses[itemId];
+    const rawStatus = serviceStatuses[itemId];
     
-
+    if (!rawStatus) {
+      return null; // 검사 기록 없음
+    }
     
-    return status;
+    // 새로운 모델: findings 배열 기반으로 상태 결정
+    const findings = rawStatus.findings || [];
+    const baseSeverity = getItemSeverity(serviceType, itemId);
+    const actualStatus = findings.length === 0 ? 'PASS' : 'FAIL';
+    
+    return {
+      ...rawStatus,
+      status: actualStatus,  // 계산된 상태
+      issuesFound: findings.length,
+      actualSeverity: findings.length === 0 ? 'PASS' : baseSeverity
+    };
   };
 
-  // 상태에 따른 아이콘과 색상 반환
+  // 상태에 따른 아이콘과 색상 반환 (새로운 모델 적용)
   const getStatusDisplay = (status) => {
     if (!status) {
       return { icon: '❓', color: '#9ca3af', text: '검사 필요', time: '' };
@@ -105,17 +138,15 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
           time: timeAgo 
         };
       case 'FAIL':
+        // severity에 따라 다른 표시
+        const severity = status.actualSeverity || 'WARN';
+        const color = severity === 'CRITICAL' ? '#ef4444' : '#f59e0b';
+        const icon = severity === 'CRITICAL' ? '🚨' : '⚠️';
+        
         return { 
-          icon: '❌', 
-          color: '#ef4444', 
+          icon: icon, 
+          color: color, 
           text: `${status.issuesFound}개 문제 발견`, 
-          time: timeAgo 
-        };
-      case 'WARNING':
-        return { 
-          icon: '⚠️', 
-          color: '#f59e0b', 
-          text: `${status.issuesFound}개 경고`, 
           time: timeAgo 
         };
       default:

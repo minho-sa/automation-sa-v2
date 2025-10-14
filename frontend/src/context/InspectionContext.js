@@ -287,10 +287,20 @@ export const InspectionProvider = ({ children }) => {
         newMap.delete(keyToRemove);
         console.log('🗑️ [InspectionContext] Removed from active list via WebSocket:', inspectionId);
         
+        // 개별 검사 완료 이벤트 발생
+        window.dispatchEvent(new CustomEvent('inspectionItemCompleted', {
+          detail: { inspectionId, completionData, completedInspection }
+        }));
+        
         // 모든 검사가 완료되었는지 확인
         if (newMap.size === 0) {
           console.log('🎉 [InspectionContext] All inspections completed via WebSocket - WebSocketManager will handle');
           // WebSocketManager가 자동으로 처리
+          
+          // 전역 이벤트 발생 - ServiceInspectionSelector에서 상태 새로고침
+          window.dispatchEvent(new CustomEvent('inspectionCompleted', {
+            detail: { inspectionId, completionData }
+          }));
         }
       } else {
         // 검사를 찾을 수 없는 경우 (이미 제거됨)
