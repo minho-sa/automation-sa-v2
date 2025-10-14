@@ -37,7 +37,7 @@ class HistoryService {
       if (!inspectionId) {
         throw new Error('inspectionId is required');
       }
-      
+
       const timestamp = Date.now();
       const isoTimestamp = new Date().toISOString();
 
@@ -210,16 +210,26 @@ class HistoryService {
   }
 
   /**
-   * 항목별 검사 이력 조회 (필터링 제거됨)
+   * 항목별 검사 이력 조회 (페이지네이션 지원)
    * @param {string} customerId - 고객 ID
    * @param {Object} options - 조회 옵션
    * @returns {Promise<Object>} 항목별 검사 이력 목록
    */
   async getItemInspectionHistory(customerId, options = {}) {
     try {
-      const { limit = 50, serviceType, historyMode = 'history' } = options;
+      const {
+        limit = 10,
+        serviceType,
+        historyMode = 'history',
+        lastEvaluatedKey
+      } = options;
 
-      console.log(`🔍 [HistoryService] Simple history query - Service: ${serviceType || 'ALL'}, Mode: ${historyMode}`);
+      console.log(`🔍 [HistoryService] Paginated history query:`, {
+        service: serviceType || 'ALL',
+        mode: historyMode,
+        limit,
+        hasLastKey: !!lastEvaluatedKey
+      });
 
       // KeyConditionExpression 구성
       let keyConditionExpression = 'customerId = :customerId';
@@ -229,7 +239,7 @@ class HistoryService {
 
       // 히스토리 모드에 따라 itemKey 패턴 결정
       const itemKeyPrefix = historyMode === 'latest' ? 'LATEST#' : 'HISTORY#';
-      
+
       // 서비스 타입 필터가 있으면 더 구체적인 패턴 사용
       if (serviceType && serviceType !== 'all') {
         keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
@@ -247,18 +257,42 @@ class HistoryService {
         Limit: limit
       };
 
+      // 페이지네이션 지원
+      if (lastEvaluatedKey) {
+        try {
+          // lastEvaluatedKey가 문자열로 전달된 경우 파싱
+          const parsedKey = typeof lastEvaluatedKey === 'string'
+            ? JSON.parse(lastEvaluatedKey)
+            : lastEvaluatedKey;
+
+          params.ExclusiveStartKey = parsedKey;
+          console.log(`📄 [HistoryService] Using pagination key:`, parsedKey);
+        } catch (parseError) {
+          console.warn(`⚠️ [HistoryService] Invalid lastEvaluatedKey format:`, parseError.message);
+          // 잘못된 키는 무시하고 첫 페이지부터 시작
+        }
+      }
+
       const command = new QueryCommand(params);
       const result = await this.client.send(command);
 
-      console.log(`✅ [HistoryService] Query result: ${result.Items?.length || 0} items`);
+      const hasMore = !!result.LastEvaluatedKey;
+      const nextKey = result.LastEvaluatedKey ? JSON.stringify(result.LastEvaluatedKey) : null;
+
+      console.log(`✅ [HistoryService] Paginated query result:`, {
+        itemCount: result.Items?.length || 0,
+        hasMore,
+        scannedCount: result.ScannedCount
+      });
 
       return {
         success: true,
         data: {
           items: result.Items || [],
           count: result.Items?.length || 0,
-          hasMore: !!result.LastEvaluatedKey,
-          lastEvaluatedKey: result.LastEvaluatedKey
+          hasMore,
+          lastEvaluatedKey: nextKey,
+          scannedCount: result.ScannedCount
         }
       };
     } catch (error) {
@@ -357,12 +391,12 @@ class HistoryService {
       if (item.findings && Array.isArray(item.findings)) {
         allFindings.push(...item.findings);
       }
-      
+
       if (item.findings) {
         // 새로운 시스템에서는 findings 개수만 카운트
         // severity는 검사 항목 레벨에서 결정됨
       }
-      
+
       totalResources += item.resourcesScanned || 1;
     });
 
@@ -396,24 +430,24 @@ class HistoryService {
    */
   groupItemsByService(items) {
     const services = {};
-    
+
     items.forEach(item => {
       const serviceType = item.serviceType;
       if (!services[serviceType]) {
         services[serviceType] = {};
       }
-      
+
       // itemKey에서 itemId 추출
       const { helpers } = require('../models/InspectionItemResult');
       let itemId;
-      
+
       try {
         const parsed = helpers.parseItemKey(item.itemKey);
         itemId = parsed.itemId;
       } catch (error) {
         itemId = item.itemId || 'unknown';
       }
-      
+
       services[serviceType][itemId] = {
         // status 필드 제거 - 프론트엔드에서 findings 기반으로 계산
         inspectionTime: item.inspectionTime,

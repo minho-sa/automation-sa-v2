@@ -24,7 +24,8 @@ const InspectionHistory = () => {
   });
   const [pagination, setPagination] = useState({
     hasMore: false,
-    lastEvaluatedKey: null
+    lastEvaluatedKey: null,
+    loading: false
   });
 
 
@@ -80,19 +81,32 @@ const InspectionHistory = () => {
     });
   };
 
-  // 검사 히스토리 로드 (필터링 단순화됨)
+  // 검사 히스토리 로드 (페이지네이션 지원)
   const loadInspectionHistory = async (loadMore = false) => {
     try {
-      setLoading(true);
+      if (loadMore) {
+        setPagination(prev => ({ ...prev, loading: true }));
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       const params = {
-        limit: 50,
+        limit: 10, // 페이지당 10개로 제한
         ...(filters.serviceType !== 'all' && { serviceType: filters.serviceType }),
         historyMode: filters.historyMode
       };
 
-      console.log('🔍 [InspectionHistory] Loading history with params:', params);
+      // 더 보기인 경우 lastEvaluatedKey 추가
+      if (loadMore && pagination.lastEvaluatedKey) {
+        params.lastEvaluatedKey = pagination.lastEvaluatedKey;
+      }
+
+      console.log('🔍 [InspectionHistory] Loading history:', {
+        params,
+        loadMore,
+        hasLastKey: !!params.lastEvaluatedKey
+      });
 
       // 항목별 검사 이력 조회
       const result = await inspectionService.getItemInspectionHistory(params);
@@ -107,13 +121,15 @@ const InspectionHistory = () => {
         setHistoryData(finalData);
         setPagination({
           hasMore: result.data.hasMore || false,
-          lastEvaluatedKey: result.data.lastEvaluatedKey
+          lastEvaluatedKey: result.data.lastEvaluatedKey,
+          loading: false
         });
 
         console.log('✅ [InspectionHistory] Loaded history:', {
           newItems: newData.length,
           totalItems: finalData.length,
-          hasMore: result.data.hasMore
+          hasMore: result.data.hasMore,
+          scannedCount: result.data.scannedCount
         });
       } else {
         throw new Error(result.error?.message || '히스토리를 불러오는데 실패했습니다.');
@@ -121,30 +137,42 @@ const InspectionHistory = () => {
     } catch (error) {
       console.error('❌ [InspectionHistory] Load failed:', error);
       setError(`데이터를 불러오는데 실패했습니다: ${error.message}`);
-      setHistoryData([]);
-      setPagination({ hasMore: false, lastEvaluatedKey: null });
+      if (!loadMore) {
+        setHistoryData([]);
+      }
+      setPagination(prev => ({ 
+        ...prev, 
+        hasMore: false, 
+        loading: false,
+        ...(loadMore ? {} : { lastEvaluatedKey: null })
+      }));
     } finally {
-      setLoading(false);
+      if (!loadMore) {
+        setLoading(false);
+      }
     }
   };
 
   // 더 많은 데이터 로드
   const loadMore = () => {
-    if (pagination.hasMore && !loading) {
+    if (pagination.hasMore && !loading && !pagination.loading) {
+      console.log('📄 [InspectionHistory] Loading more items...');
       loadInspectionHistory(true);
     }
   };
 
 
 
-  // 필터 변경 핸들러 (단순화됨)
+  // 필터 변경 핸들러 (페이지네이션 리셋)
   const handleFilterChange = (filterType, value) => {
     console.log('🔄 [InspectionHistory] Filter changed:', filterType, value);
     setFilters(prev => ({
       ...prev,
       [filterType]: value
     }));
-    setPagination({ hasMore: false, lastEvaluatedKey: null });
+    // 필터 변경 시 페이지네이션 리셋
+    setPagination({ hasMore: false, lastEvaluatedKey: null, loading: false });
+    setHistoryData([]); // 기존 데이터 클리어
   };
 
 
@@ -333,9 +361,10 @@ const InspectionHistory = () => {
               historyMode: 'history'
             };
             setFilters(resetFilters);
-            setPagination({ hasMore: false, lastEvaluatedKey: null });
+            setPagination({ hasMore: false, lastEvaluatedKey: null, loading: false });
+            setHistoryData([]); // 기존 데이터 클리어
           }}
-          disabled={loading}
+          disabled={loading || pagination.loading}
           title="초기화"
         >
           🗑️
@@ -445,26 +474,37 @@ const InspectionHistory = () => {
           </div>
         )}
 
-        {/* 더 보기 버튼 */}
+        {/* 더 보기 버튼 (페이지네이션) */}
         {pagination.hasMore && (
           <div className="load-more-modern">
             <button
               className="load-more-btn-modern"
               onClick={loadMore}
-              disabled={loading}
+              disabled={loading || pagination.loading}
             >
-              {loading ? (
+              {pagination.loading ? (
                 <>
                   <span className="loading-spinner-modern"></span>
-                  로딩 중...
+                  더 불러오는 중...
                 </>
               ) : (
                 <>
                   <span className="load-icon-modern">📄</span>
-                  더 많은 기록 보기
+                  더 많은 기록 보기 (10개씩)
                 </>
               )}
             </button>
+            <div className="pagination-info">
+              현재 {historyData.length}개 표시됨
+            </div>
+          </div>
+        )}
+
+        {/* 페이지네이션 완료 메시지 */}
+        {!pagination.hasMore && historyData.length > 0 && (
+          <div className="pagination-complete">
+            <span className="complete-icon">✅</span>
+            <span>모든 기록을 불러왔습니다 (총 {historyData.length}개)</span>
           </div>
         )}
       </div>

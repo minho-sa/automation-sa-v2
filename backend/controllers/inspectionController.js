@@ -507,7 +507,7 @@ const getAllItemStatus = async (req, res) => {
 };
 
 /**
- * 항목별 검사 이력 조회 (필터링 제거됨)
+ * 항목별 검사 이력 조회 (페이지네이션 지원)
  * GET /api/inspections/items/history
  */
 const getItemInspectionHistory = async (req, res) => {
@@ -515,22 +515,28 @@ const getItemInspectionHistory = async (req, res) => {
         const customerId = req.user.userId;
         const { 
             serviceType, 
-            limit = 50,
-            historyMode = 'history'
+            limit = 10,
+            historyMode = 'history',
+            lastEvaluatedKey
         } = req.query;
 
         // 쿼리 파라미터 검증
-        const queryLimit = Math.min(parseInt(limit) || 50, 100); // 최대 100개로 제한
+        const queryLimit = Math.min(parseInt(limit) || 10, 20); // 최대 20개로 제한
 
-        console.log(`🔍 [InspectionController] Simple history request - Service: ${serviceType || 'ALL'}, Limit: ${queryLimit}`);
+        console.log(`🔍 [InspectionController] Paginated history request:`, {
+            service: serviceType || 'ALL',
+            limit: queryLimit,
+            hasLastKey: !!lastEvaluatedKey
+        });
 
-        // 항목별 검사 이력 조회
+        // 항목별 검사 이력 조회 (페이지네이션 지원)
         const result = await historyService.getItemInspectionHistory(
             customerId,
             {
                 limit: queryLimit,
                 serviceType,
-                historyMode
+                historyMode,
+                lastEvaluatedKey
             }
         );
 
@@ -545,8 +551,10 @@ const getItemInspectionHistory = async (req, res) => {
         res.status(200).json(ApiResponse.success({
             message: 'Item inspection history retrieved successfully',
             items: result.data.items,
-            totalCount: result.data.count,
-            hasMore: result.data.hasMore
+            count: result.data.count,
+            hasMore: result.data.hasMore,
+            lastEvaluatedKey: result.data.lastEvaluatedKey,
+            scannedCount: result.data.scannedCount
         }));
 
     } catch (error) {

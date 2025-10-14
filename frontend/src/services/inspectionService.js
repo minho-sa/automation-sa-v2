@@ -185,19 +185,20 @@ export const inspectionService = {
   },
 
   /**
-   * 항목별 검사 이력 조회 (필터링 단순화됨)
+   * 항목별 검사 이력 조회 (페이지네이션 지원)
    * @param {Object} params - 쿼리 파라미터
    * @param {string} params.serviceType - 서비스 타입 필터 (선택사항)
-   * @param {number} params.limit - 조회할 항목 수 (기본값: 50)
+   * @param {number} params.limit - 조회할 항목 수 (기본값: 10)
    * @param {string} params.historyMode - 히스토리 모드 ('history' 또는 'latest')
+   * @param {string} params.lastEvaluatedKey - 페이지네이션 키 (선택사항)
    * @returns {Promise<Object>} 항목별 검사 이력 목록
    */
   getItemInspectionHistory: async (params = {}) => {
     return withRetry(async () => {
       const queryParams = new URLSearchParams();
       
-      // 허용된 파라미터만 추가
-      const allowedParams = ['serviceType', 'limit', 'historyMode'];
+      // 허용된 파라미터만 추가 (페이지네이션 키 포함)
+      const allowedParams = ['serviceType', 'limit', 'historyMode', 'lastEvaluatedKey'];
       Object.entries(params).forEach(([key, value]) => {
         if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
           queryParams.append(key, value);
@@ -207,7 +208,11 @@ export const inspectionService = {
       const queryString = queryParams.toString();
       const url = queryString ? `/inspections/items/history?${queryString}` : '/inspections/items/history';
       
-      console.log('🔍 [InspectionService] Calling API:', url);
+      console.log('🔍 [InspectionService] Calling paginated API:', {
+        url: url.split('?')[0],
+        hasLastKey: !!params.lastEvaluatedKey,
+        limit: params.limit || 10
+      });
       
       const response = await api.get(url);
       return response.data;
