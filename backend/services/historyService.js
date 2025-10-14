@@ -210,14 +210,16 @@ class HistoryService {
   }
 
   /**
-   * 항목별 검사 이력 조회
+   * 항목별 검사 이력 조회 (필터링 제거됨)
    * @param {string} customerId - 고객 ID
    * @param {Object} options - 조회 옵션
    * @returns {Promise<Object>} 항목별 검사 이력 목록
    */
   async getItemInspectionHistory(customerId, options = {}) {
     try {
-      const { limit = 50, serviceType, startDate, endDate, status, historyMode = 'history' } = options;
+      const { limit = 50, serviceType, historyMode = 'history' } = options;
+
+      console.log(`🔍 [HistoryService] Simple history query - Service: ${serviceType || 'ALL'}, Mode: ${historyMode}`);
 
       // KeyConditionExpression 구성
       let keyConditionExpression = 'customerId = :customerId';
@@ -237,35 +239,6 @@ class HistoryService {
         expressionAttributeValues[':itemKeyPrefix'] = itemKeyPrefix;
       }
 
-      // FilterExpression 구성
-      let filterExpression = '';
-      const filterConditions = [];
-
-      // 날짜 필터 추가
-      if (startDate) {
-        const startTimestamp = new Date(startDate).getTime();
-        filterConditions.push('inspectionTime >= :startTime');
-        expressionAttributeValues[':startTime'] = startTimestamp;
-      }
-
-      if (endDate) {
-        const endTimestamp = new Date(endDate).getTime();
-        filterConditions.push('inspectionTime <= :endTime');
-        expressionAttributeValues[':endTime'] = endTimestamp;
-      }
-
-      // 상태 필터 추가
-      if (status && status !== 'all') {
-        // 검사 항목별 상태로 통일 매핑
-        const mappedStatus = this.mapToItemStatus(status);
-        filterConditions.push('#status = :status');
-        expressionAttributeValues[':status'] = mappedStatus;
-      }
-
-      if (filterConditions.length > 0) {
-        filterExpression = filterConditions.join(' AND ');
-      }
-
       const params = {
         TableName: this.tableName,
         KeyConditionExpression: keyConditionExpression,
@@ -274,35 +247,16 @@ class HistoryService {
         Limit: limit
       };
 
-      if (filterExpression) {
-        params.FilterExpression = filterExpression;
-      }
-
-      // status는 DynamoDB 예약어이므로 ExpressionAttributeNames 사용
-      if (status && status !== 'all') {
-        params.ExpressionAttributeNames = {
-          '#status': 'status'
-        };
-      }
-
       const command = new QueryCommand(params);
       const result = await this.client.send(command);
 
-      if (!result.Items || result.Items.length === 0) {
-        return {
-          success: true,
-          data: {
-            items: [],
-            count: 0
-          }
-        };
-      }
+      console.log(`✅ [HistoryService] Query result: ${result.Items?.length || 0} items`);
 
       return {
         success: true,
         data: {
-          items: result.Items,
-          count: result.Items.length,
+          items: result.Items || [],
+          count: result.Items?.length || 0,
           hasMore: !!result.LastEvaluatedKey,
           lastEvaluatedKey: result.LastEvaluatedKey
         }
@@ -486,26 +440,7 @@ class HistoryService {
     }
   }
 
-  /**
-   * 전체 검사 상태를 검사 항목별 상태로 매핑
-   * @param {string} status - 전체 검사 상태 (PENDING, IN_PROGRESS, COMPLETED, FAILED)
-   * @returns {string} 검사 항목별 상태 (PASS, FAIL, WARNING, NOT_CHECKED)
-   */
-  mapToItemStatus(status) {
-    const statusMapping = {
-      'COMPLETED': 'PASS',
-      'FAILED': 'FAIL', 
-      'PENDING': 'NOT_CHECKED',
-      'IN_PROGRESS': 'NOT_CHECKED',
-      // 이미 검사 항목별 상태인 경우 그대로 반환
-      'PASS': 'PASS',
-      'FAIL': 'FAIL',
-      'WARNING': 'WARNING',
-      'NOT_CHECKED': 'NOT_CHECKED'
-    };
-    
-    return statusMapping[status] || status;
-  }
+
 }
 
 module.exports = new HistoryService();

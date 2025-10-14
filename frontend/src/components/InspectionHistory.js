@@ -17,12 +17,9 @@ const InspectionHistory = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedInspection, setSelectedInspection] = useState(null);
-  // 항목별 보기로 고정
+  // 단순화된 필터 (서비스 타입만)
   const [filters, setFilters] = useState({
     serviceType: 'all',
-    status: 'all',
-    startDate: '',
-    endDate: '',
     historyMode: 'history' // 'latest' 또는 'history'
   });
   const [pagination, setPagination] = useState({
@@ -83,7 +80,7 @@ const InspectionHistory = () => {
     });
   };
 
-  // 검사 히스토리 로드
+  // 검사 히스토리 로드 (필터링 단순화됨)
   const loadInspectionHistory = async (loadMore = false) => {
     try {
       setLoading(true);
@@ -92,21 +89,10 @@ const InspectionHistory = () => {
       const params = {
         limit: 50,
         ...(filters.serviceType !== 'all' && { serviceType: filters.serviceType }),
-        ...(filters.status !== 'all' && { status: filters.status }),
         historyMode: filters.historyMode
       };
 
-      // 날짜 필터 적용
-      if (filters.startDate) {
-        const startDate = new Date(filters.startDate);
-        startDate.setHours(0, 0, 0, 0);
-        params.startDate = startDate.toISOString();
-      }
-      if (filters.endDate) {
-        const endDate = new Date(filters.endDate);
-        endDate.setHours(23, 59, 59, 999);
-        params.endDate = endDate.toISOString();
-      }
+      console.log('🔍 [InspectionHistory] Loading history with params:', params);
 
       // 항목별 검사 이력 조회
       const result = await inspectionService.getItemInspectionHistory(params);
@@ -117,28 +103,23 @@ const InspectionHistory = () => {
         // 실제 데이터를 표시용으로 변환
         newData = enrichItemData(newData);
 
-        // 클라이언트 사이드 필터링 적용 (상태 필터만)
-        newData = newData.filter(item => {
-          // 상태 필터만 클라이언트에서 처리 (날짜는 백엔드에서 처리됨)
-          if (filters.status !== 'all') {
-            const normalizedItemStatus = normalizeStatus(item.status);
-            if (normalizedItemStatus !== filters.status) {
-              return false;
-            }
-          }
-          return true;
-        });
-
         const finalData = loadMore ? [...historyData, ...newData] : newData;
         setHistoryData(finalData);
         setPagination({
           hasMore: result.data.hasMore || false,
           lastEvaluatedKey: result.data.lastEvaluatedKey
         });
+
+        console.log('✅ [InspectionHistory] Loaded history:', {
+          newItems: newData.length,
+          totalItems: finalData.length,
+          hasMore: result.data.hasMore
+        });
       } else {
         throw new Error(result.error?.message || '히스토리를 불러오는데 실패했습니다.');
       }
     } catch (error) {
+      console.error('❌ [InspectionHistory] Load failed:', error);
       setError(`데이터를 불러오는데 실패했습니다: ${error.message}`);
       setHistoryData([]);
       setPagination({ hasMore: false, lastEvaluatedKey: null });
@@ -156,20 +137,12 @@ const InspectionHistory = () => {
 
 
 
-  // 필터 변경 핸들러
+  // 필터 변경 핸들러 (단순화됨)
   const handleFilterChange = (filterType, value) => {
+    console.log('🔄 [InspectionHistory] Filter changed:', filterType, value);
     setFilters(prev => ({
       ...prev,
       [filterType]: value
-    }));
-    setPagination({ hasMore: false, lastEvaluatedKey: null });
-  };
-
-  // 날짜 변경 핸들러
-  const handleDateChange = (dateType, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [dateType]: value
     }));
     setPagination({ hasMore: false, lastEvaluatedKey: null });
   };
@@ -329,7 +302,7 @@ const InspectionHistory = () => {
         </div>
       </div>
 
-      {/* 콤팩트 필터 */}
+      {/* 단순화된 필터 */}
       <div className="filters-compact">
         <select
           value={filters.serviceType}
@@ -342,34 +315,6 @@ const InspectionHistory = () => {
           <option value="S3">🪣 S3</option>
           <option value="IAM">👤 IAM</option>
         </select>
-
-        <select
-          value={filters.status}
-          onChange={(e) => handleFilterChange('status', e.target.value)}
-          className="filter-mini"
-        >
-          <option value="all">모든 상태</option>
-          <option value="PASS">🟢 검사 완료</option>
-          <option value="FAIL">🔴 문제 발견</option>
-          <option value="NOT_CHECKED">⚪ 검사 대상 없음</option>
-        </select>
-
-        <input
-          type="date"
-          value={filters.startDate}
-          onChange={(e) => handleDateChange('startDate', e.target.value)}
-          className="date-mini"
-          max={new Date().toISOString().split('T')[0]}
-        />
-
-        <input
-          type="date"
-          value={filters.endDate}
-          onChange={(e) => handleDateChange('endDate', e.target.value)}
-          className="date-mini"
-          max={new Date().toISOString().split('T')[0]}
-          min={filters.startDate}
-        />
 
         <button
           className="btn-mini"
@@ -385,9 +330,6 @@ const InspectionHistory = () => {
           onClick={() => {
             const resetFilters = {
               serviceType: 'all',
-              status: 'all',
-              startDate: '',
-              endDate: '',
               historyMode: 'history'
             };
             setFilters(resetFilters);
@@ -426,8 +368,6 @@ const InspectionHistory = () => {
           <div className="history-list-compact">
             {historyData.map((item, index) => {
               const normalizedStatus = normalizeStatus(item.status);
-
-
 
               return (
                 <div key={`${item.itemId}-${index}`} className={`history-row-compact status-${normalizedStatus.toLowerCase()}`}>

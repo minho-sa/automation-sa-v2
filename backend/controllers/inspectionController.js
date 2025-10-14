@@ -151,7 +151,7 @@ const getInspectionDetails = async (req, res) => {
 };
 
 /**
- * 검사 이력 조회
+ * 검사 이력 조회 (필터링 제거됨)
  * GET /api/inspections/history
  * Requirements: 3.2 - 고객이 검사 이력을 요청하여 날짜순으로 정렬된 검사 이력을 표시
  */
@@ -160,20 +160,13 @@ const getInspectionHistory = async (req, res) => {
         const customerId = req.user.userId;
         const { 
             serviceType, 
-            limit = 20, 
-            lastEvaluatedKey,
-            startDate,
-            endDate 
+            limit = 20
         } = req.query;
 
         // 쿼리 파라미터 검증
         const queryLimit = Math.min(parseInt(limit) || 20, 100); // 최대 100개로 제한
 
-        const filters = {
-            serviceType,
-            startDate: startDate ? new Date(startDate).getTime() : undefined,
-            endDate: endDate ? new Date(endDate).getTime() : undefined
-        };
+        console.log(`🔍 [InspectionController] Simple inspection history request - Service: ${serviceType || 'ALL'}, Limit: ${queryLimit}`);
 
         // 검사 이력 조회 (단일 테이블 구조)
         const result = await historyService.getInspectionHistoryList(
@@ -415,19 +408,15 @@ const getItemHistory = async (req, res) => {
         const customerId = req.user.userId;
         const { 
             serviceType, 
-            limit = 50, 
-            startDate,
-            endDate 
+            limit = 50
         } = req.query;
 
+        console.log(`🔍 [InspectionController] Simple item history request - Service: ${serviceType || 'ALL'}, Limit: ${limit}`);
 
-
-        // 검사 항목 히스토리 조회
+        // 검사 항목 히스토리 조회 (필터링 제거됨)
         const result = await inspectionItemService.getItemHistory(customerId, {
             serviceType,
-            limit: parseInt(limit),
-            startDate,
-            endDate
+            limit: parseInt(limit)
         });
         
         if (!result.success) {
@@ -518,7 +507,7 @@ const getAllItemStatus = async (req, res) => {
 };
 
 /**
- * 항목별 검사 이력 조회
+ * 항목별 검사 이력 조회 (필터링 제거됨)
  * GET /api/inspections/items/history
  */
 const getItemInspectionHistory = async (req, res) => {
@@ -527,16 +516,13 @@ const getItemInspectionHistory = async (req, res) => {
         const { 
             serviceType, 
             limit = 50,
-            startDate,
-            endDate,
-            status,
-            historyMode
+            historyMode = 'history'
         } = req.query;
-
-
 
         // 쿼리 파라미터 검증
         const queryLimit = Math.min(parseInt(limit) || 50, 100); // 최대 100개로 제한
+
+        console.log(`🔍 [InspectionController] Simple history request - Service: ${serviceType || 'ALL'}, Limit: ${queryLimit}`);
 
         // 항목별 검사 이력 조회
         const result = await historyService.getItemInspectionHistory(
@@ -544,9 +530,6 @@ const getItemInspectionHistory = async (req, res) => {
             {
                 limit: queryLimit,
                 serviceType,
-                startDate,
-                endDate,
-                status,
                 historyMode
             }
         );
@@ -562,7 +545,8 @@ const getItemInspectionHistory = async (req, res) => {
         res.status(200).json(ApiResponse.success({
             message: 'Item inspection history retrieved successfully',
             items: result.data.items,
-            totalCount: result.data.count
+            totalCount: result.data.count,
+            hasMore: result.data.hasMore
         }));
 
     } catch (error) {

@@ -93,22 +93,21 @@ export const inspectionService = {
   },
 
   /**
-   * 검사 이력 조회
+   * 검사 이력 조회 (필터링 단순화됨)
    * Requirements: 1.1 - 고객이 검사 이력을 요청
    * @param {Object} params - 쿼리 파라미터
    * @param {string} params.serviceType - 서비스 타입 필터 (선택사항)
    * @param {number} params.limit - 조회할 항목 수 (기본값: 20)
-   * @param {string} params.lastEvaluatedKey - 페이지네이션 키 (선택사항)
-   * @param {string} params.startDate - 시작 날짜 (선택사항)
-   * @param {string} params.endDate - 종료 날짜 (선택사항)
    * @returns {Promise<Object>} 검사 이력 목록
    */
   getInspectionHistory: async (params = {}) => {
     return withRetry(async () => {
       const queryParams = new URLSearchParams();
       
+      // 허용된 파라미터만 추가
+      const allowedParams = ['serviceType', 'limit'];
       Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
+        if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
           queryParams.append(key, value);
         }
       });
@@ -186,24 +185,29 @@ export const inspectionService = {
   },
 
   /**
-   * 항목별 검사 이력 조회
+   * 항목별 검사 이력 조회 (필터링 단순화됨)
    * @param {Object} params - 쿼리 파라미터
    * @param {string} params.serviceType - 서비스 타입 필터 (선택사항)
    * @param {number} params.limit - 조회할 항목 수 (기본값: 50)
+   * @param {string} params.historyMode - 히스토리 모드 ('history' 또는 'latest')
    * @returns {Promise<Object>} 항목별 검사 이력 목록
    */
   getItemInspectionHistory: async (params = {}) => {
     return withRetry(async () => {
       const queryParams = new URLSearchParams();
       
+      // 허용된 파라미터만 추가
+      const allowedParams = ['serviceType', 'limit', 'historyMode'];
       Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
+        if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
           queryParams.append(key, value);
         }
       });
       
       const queryString = queryParams.toString();
       const url = queryString ? `/inspections/items/history?${queryString}` : '/inspections/items/history';
+      
+      console.log('🔍 [InspectionService] Calling API:', url);
       
       const response = await api.get(url);
       return response.data;

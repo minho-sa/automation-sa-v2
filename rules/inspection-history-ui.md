@@ -1,11 +1,11 @@
-# 🕒 검사 히스토리 UI 표시 로직
+# 🕒 검사 히스토리 UI 표시 로직 (단순화됨)
 
 ## 📋 목차
 1. [데이터 소스 개요](#데이터-소스-개요)
 2. [히스토리 데이터 조회](#히스토리-데이터-조회)
 3. [데이터 변환 및 표시](#데이터-변환-및-표시)
 4. [API 데이터 흐름](#api-데이터-흐름)
-5. [필터링 및 정렬 로직](#필터링-및-정렬-로직)
+5. [단순화된 필터링 로직](#단순화된-필터링-로직)
 
 ---
 
@@ -68,29 +68,19 @@
 
 ### 🔄 **API 호출 흐름**
 
-**1. 프론트엔드 API 호출**:
+**1. 프론트엔드 API 호출 (단순화됨)**:
 ```javascript
 // frontend/src/services/inspectionService.js
 getItemInspectionHistory: async (params = {}) => {
   const queryParams = new URLSearchParams();
   
-  // 필터 파라미터 추가
-  if (params.serviceType && params.serviceType !== 'all') {
-    queryParams.append('serviceType', params.serviceType);
-  }
-  if (params.startDate) {
-    queryParams.append('startDate', params.startDate);
-  }
-  if (params.endDate) {
-    queryParams.append('endDate', params.endDate);
-  }
-  // ❌ status 파라미터는 백엔드에서 지원되지 않음
-  if (params.historyMode) {
-    queryParams.append('historyMode', params.historyMode);
-  }
-  if (params.limit) {
-    queryParams.append('limit', params.limit.toString());
-  }
+  // 허용된 파라미터만 추가
+  const allowedParams = ['serviceType', 'limit', 'historyMode'];
+  Object.entries(params).forEach(([key, value]) => {
+    if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
+      queryParams.append(key, value);
+    }
+  });
   
   const url = `/inspections/items/history?${queryParams.toString()}`;
   const response = await api.get(url);
@@ -101,10 +91,11 @@ getItemInspectionHistory: async (params = {}) => {
 const loadInspectionHistory = async () => {
   const params = {
     serviceType: serviceFilter !== 'all' ? serviceFilter : undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-    limit: 100
+    limit: 50,
+    historyMode: 'history'
   };
+  
+  console.log('🔍 [InspectionHistory] Loading with params:', params);
   
   const result = await inspectionService.getItemInspectionHistory(params);
   
@@ -114,7 +105,7 @@ const loadInspectionHistory = async () => {
 };
 ```
 
-**2. 백엔드 API 처리**:
+**2. 백엔드 API 처리 (단순화됨)**:
 ```javascript
 // backend/routes/inspections.js
 router.get('/items/history', inspectionController.getItemInspectionHistory);
@@ -125,24 +116,24 @@ const getItemInspectionHistory = async (req, res) => {
   const { 
     serviceType, 
     limit = 50,
-    startDate,
-    endDate,
-    historyMode
+    historyMode = 'history'
   } = req.query;
-  
-  // ❌ status 파라미터는 제거됨 (DynamoDB에 저장되지 않음)
 
   // 쿼리 파라미터 검증
   const queryLimit = Math.min(parseInt(limit) || 50, 100); // 최대 100개로 제한
 
-  // 항목별 검사 이력 조회
+  console.log('🔍 [InspectionController] Simple history request:', {
+    serviceType: serviceType || 'ALL',
+    limit: queryLimit,
+    historyMode
+  });
+
+  // 항목별 검사 이력 조회 (필터링 단순화됨)
   const result = await historyService.getItemInspectionHistory(
     customerId,
     {
       limit: queryLimit,
       serviceType,
-      startDate,
-      endDate,
       historyMode
     }
   );
@@ -513,27 +504,37 @@ const enrichedItems = useMemo(() => {
 
 ---
 
-## 🔍 필터링 및 정렬 로직
+## 🔍 단순화된 필터링 로직
 
-### 📊 **서버 사이드 필터링**
+### 📊 **서버 사이드 필터링 (단순화됨)**
 
 **백엔드에서 지원하는 필터**:
 - `serviceType`: 특정 서비스만 조회 (EC2, S3, IAM, RDS 등)
-- `startDate`: 시작 날짜 이후 검사만
-- `endDate`: 종료 날짜 이전 검사만
 - `historyMode`: 조회 모드 ('history' 또는 'latest')
 - `limit`: 조회할 최대 개수 (기본 50, 최대 100)
 
-**❌ 지원되지 않는 필터**:
-- `status`: DynamoDB에 status 필드가 저장되지 않음 (프론트엔드에서 findings 기반 계산)
+**❌ 제거된 필터**:
+- `startDate`: 날짜 필터링 제거
+- `endDate`: 날짜 필터링 제거
+- `status`: 상태 필터링 제거
 
 ```javascript
-// backend/services/historyService.js
+// backend/services/historyService.js (단순화됨)
 async getItemInspectionHistory(customerId, options = {}) {
-  const { limit = 50, serviceType, startDate, endDate, status, historyMode = 'history' } = options;
+  const { limit = 50, serviceType, historyMode = 'history' } = options;
 
-  // 1. KeyConditionExpression 구성 (서비스 타입 필터)
+  console.log('🔍 [HistoryService] Simple history query:', {
+    serviceType: serviceType || 'ALL',
+    historyMode,
+    limit
+  });
+
+  // KeyConditionExpression 구성 (서비스 타입 필터만)
   let keyConditionExpression = 'customerId = :customerId';
+  const expressionAttributeValues = {
+    ':customerId': customerId
+  };
+
   const itemKeyPrefix = historyMode === 'latest' ? 'LATEST#' : 'HISTORY#';
   
   if (serviceType && serviceType !== 'all') {
@@ -544,75 +545,41 @@ async getItemInspectionHistory(customerId, options = {}) {
     expressionAttributeValues[':itemKeyPrefix'] = itemKeyPrefix;
   }
 
-  // 2. FilterExpression 구성 (날짜, 상태 필터)
-  const filterConditions = [];
+  const params = {
+    TableName: this.tableName,
+    KeyConditionExpression: keyConditionExpression,
+    ExpressionAttributeValues: expressionAttributeValues,
+    ScanIndexForward: false, // 최신순 정렬
+    Limit: limit
+  };
 
-  // 날짜 범위 필터
-  if (startDate) {
-    const startTimestamp = new Date(startDate).getTime();
-    filterConditions.push('inspectionTime >= :startTime');
-    expressionAttributeValues[':startTime'] = startTimestamp;
-  }
-
-  if (endDate) {
-    const endTimestamp = new Date(endDate).getTime();
-    filterConditions.push('inspectionTime <= :endTime');
-    expressionAttributeValues[':endTime'] = endTimestamp;
-  }
-
-  // ❌ 상태 필터는 실제로 지원되지 않음 (status 필드가 저장되지 않음)
-  // 프론트엔드에서 findings 기반으로 상태를 계산하므로 백엔드 필터링 불가능
-
-  if (filterConditions.length > 0) {
-    params.FilterExpression = filterConditions.join(' AND ');
-  }
+  const result = await this.client.send(new QueryCommand(params));
+  return {
+    success: true,
+    items: result.Items || [],
+    count: result.Items?.length || 0
+  };
 }
-
-// ❌ mapToItemStatus 함수는 실제로 사용되지 않음
-// status 필드가 DynamoDB에 저장되지 않으므로 상태 필터링 불가능
 ```
 
-### 📈 **클라이언트 사이드 필터링**
+### 📈 **클라이언트 사이드 필터링 (제거됨)**
 
 ```javascript
-// InspectionHistory.js
-const filteredItems = useMemo(() => {
-  return enrichedItems.filter(item => {
-    // 서비스 타입 필터
-    if (serviceFilter !== 'all' && item.serviceType !== serviceFilter) {
-      return false;
-    }
-    
-    // 상태 필터
-    if (statusFilter !== 'all') {
-      const normalizedStatus = normalizeStatus(item.severity);
-      if (normalizedStatus !== statusFilter) {
-        return false;
-      }
-    }
-    
-    // 날짜 범위 필터 (추가 클라이언트 필터링)
-    const itemDate = new Date(item.timestamp);
-    if (startDate && itemDate < new Date(startDate)) {
-      return false;
-    }
-    if (endDate && itemDate > new Date(endDate + 'T23:59:59')) {
-      return false;
-    }
-    
-    return true;
-  });
-}, [enrichedItems, serviceFilter, statusFilter, startDate, endDate]);
+// InspectionHistory.js (단순화됨)
+// 복잡한 클라이언트 사이드 필터링 제거
+// 서버에서 받은 데이터를 그대로 표시
 
-// 상태 정규화 함수
-const normalizeStatus = (severity) => {
-  if (severity === 'PASS') return 'PASS';
-  if (severity === 'CRITICAL' || severity === 'WARN') return 'FAIL';
-  return 'NOT_CHECKED';
-};
+const displayItems = useMemo(() => {
+  return enrichItemData(historyItems);
+}, [historyItems]);
+
+// 필터링 로직 제거:
+// ❌ 상태별 필터링 제거
+// ❌ 날짜 범위 필터링 제거
+// ✅ 서비스별 필터링은 서버에서 처리
 ```
 
-### ⚡ **성능 최적화**
+### ⚡ **성능 최적화 (단순화됨)**
 
 **1. 페이지네이션**:
 ```javascript
@@ -622,7 +589,8 @@ const DEFAULT_LIMIT = 50;
 // 더 보기 기능
 const loadMoreHistory = async () => {
   const params = {
-    ...currentFilters,
+    serviceType: filters.serviceType,
+    historyMode: filters.historyMode,
     limit: DEFAULT_LIMIT,
     lastEvaluatedKey: lastKey  // 다음 페이지 키
   };
@@ -632,17 +600,14 @@ const loadMoreHistory = async () => {
 };
 ```
 
-**2. 메모이제이션**:
+**2. 메모이제이션 (단순화됨)**:
 ```javascript
-// 데이터 변환 결과 캐싱
-const enrichedItems = useMemo(() => {
+// 데이터 변환 결과 캐싱만 유지
+const displayItems = useMemo(() => {
   return enrichItemData(historyItems);
 }, [historyItems]);
 
-// 필터링 결과 캐싱
-const filteredItems = useMemo(() => {
-  return applyFilters(enrichedItems);
-}, [enrichedItems, serviceFilter, statusFilter, startDate, endDate]);
+// 복잡한 필터링 캐싱 제거
 ```
 
 ---
@@ -703,9 +668,9 @@ const filteredItems = useMemo(() => {
    - 백엔드: findings 배열만 반환
    - 프론트엔드: findings + severity → 최종 상태
 
-4. **필터링 시스템**:
-   - 서버사이드: serviceType, startDate, endDate, historyMode, limit
-   - 클라이언트사이드: 상태별 (findings 기반 계산), 추가 조건별 필터링
+4. **필터링 시스템 (단순화됨)**:
+   - 서버사이드: serviceType, historyMode, limit
+   - 클라이언트사이드: 필터링 제거 (서버에서 받은 데이터 그대로 표시)
 
 5. **성능 최적화**:
    - 페이지네이션 (50개씩 로드)
@@ -716,8 +681,8 @@ const filteredItems = useMemo(() => {
 DynamoDB HISTORY → API 조회 → enrichItemData 변환 → 필터링 → UI 표시
 ```
 
-### 🔧 **주요 특징**
+### 🔧 **주요 특징 (단순화됨)**
 - **실시간 상태 계산**: findings 배열 기반 동적 상태 결정
-- **유연한 필터링**: 서비스, 상태, 날짜 범위별 필터
+- **단순한 필터링**: 서비스별 필터만 지원
 - **상세 정보**: 각 검사 항목별 findings와 권장사항 표시
 - **시간순 정렬**: 최신 검사부터 표시 (reversedTimestamp 활용)

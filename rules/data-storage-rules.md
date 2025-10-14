@@ -220,49 +220,41 @@ async getItemInspectionHistory(params) {
 }
 ```
 
-### 3️⃣ **전체 히스토리 조회 (시간 범위)**
+### 3️⃣ **전체 히스토리 조회 (단순화됨)**
 
 **API**: `GET /api/inspections/items/history`
 **구현**: `backend/services/historyService.js`
 
 ```javascript
 async getItemInspectionHistory(params) {
-  const { customerId, startDate, endDate, serviceType, limit = 50 } = params;
+  const { customerId, serviceType, limit = 50, historyMode = 'history' } = params;
   
-  let queryParams = {
-    TableName: this.tableName,
-    KeyConditionExpression: 'customerId = :customerId AND begins_with(itemKey, :history)',
-    ExpressionAttributeValues: {
-      ':customerId': customerId,
-      ':history': 'HISTORY#'
-    },
-    Limit: limit,
-    ScanIndexForward: false
+  // 히스토리 모드에 따라 itemKey 패턴 결정
+  const itemKeyPrefix = historyMode === 'latest' ? 'LATEST#' : 'HISTORY#';
+  
+  let keyConditionExpression = 'customerId = :customerId';
+  const expressionAttributeValues = {
+    ':customerId': customerId
   };
   
-  // 필터 조건 추가
-  const filterExpressions = [];
-  
-  if (startDate) {
-    filterExpressions.push('inspectionTime >= :startDate');
-    queryParams.ExpressionAttributeValues[':startDate'] = new Date(startDate).getTime();
-  }
-  
-  if (endDate) {
-    filterExpressions.push('inspectionTime <= :endDate');
-    queryParams.ExpressionAttributeValues[':endDate'] = new Date(endDate).getTime();
-  }
-  
+  // 서비스 타입 필터가 있으면 더 구체적인 패턴 사용
   if (serviceType && serviceType !== 'all') {
-    filterExpressions.push('serviceType = :serviceType');
-    queryParams.ExpressionAttributeValues[':serviceType'] = serviceType;
+    keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
+    expressionAttributeValues[':itemKeyPrefix'] = `${itemKeyPrefix}${serviceType}#`;
+  } else {
+    keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
+    expressionAttributeValues[':itemKeyPrefix'] = itemKeyPrefix;
   }
   
-  if (filterExpressions.length > 0) {
-    queryParams.FilterExpression = filterExpressions.join(' AND ');
-  }
+  const params = {
+    TableName: this.tableName,
+    KeyConditionExpression: keyConditionExpression,
+    ExpressionAttributeValues: expressionAttributeValues,
+    ScanIndexForward: false, // 최신순 정렬
+    Limit: limit
+  };
   
-  const result = await this.client.query(queryParams);
+  const result = await this.client.query(params);
   return result.Items;
 }
 ```
@@ -292,7 +284,7 @@ async getInspectionResults(customerId, inspectionId) {
 
 ---
 
-## 📊 데이터 변환 규칙
+## 📊 데이터 변환 규칙 (단순화됨)
 
 ### 1️⃣ **저장 시 데이터 변환**
 
@@ -308,18 +300,8 @@ function transformForStorage(itemResult, customerId, inspectionId) {
     category: itemResult.category || 'security',
     inspectionId,
     inspectionTime: Date.now(),
-    status: determineStatus(itemResult.findings),
-    totalResources: itemResult.totalResources || 0,
-    issuesFound: itemResult.findings?.length || 0,
     findings: itemResult.findings?.map(f => f.toApiResponse()) || []
   };
-}
-
-function determineStatus(findings) {
-  if (!findings || findings.length === 0) {
-    return 'PASS';
-  }
-  return 'FAIL';
 }
 ```
 
@@ -335,9 +317,6 @@ function transformForApi(items) {
     category: item.category,
     inspectionId: item.inspectionId,
     inspectionTime: item.inspectionTime,
-    status: item.status,
-    totalResources: item.totalResources || 0,
-    issuesFound: item.issuesFound || 0,
     findings: item.findings || [],
     
     // 추가 메타데이터
@@ -420,7 +399,7 @@ async saveItemResult(customerId, inspectionId, itemResult) {
 
 ---
 
-## 📈 성능 최적화 규칙
+## 📈 성능 최적화 규칙 (단순화됨)
 
 ### 1️⃣ **배치 처리**
 
@@ -442,11 +421,11 @@ async saveBatchItems(items) {
 }
 ```
 
-### 2️⃣ **조회 최적화**
+### 2️⃣ **조회 최적화 (단순화됨)**
 
 **규칙**: 
 - 최신 상태 조회 시 LATEST 레코드만 사용
-- 히스토리 조회 시 필요한 범위만 조회
+- 히스토리 조회 시 서비스별 패턴 활용
 - 페이지네이션 적용
 
 ```javascript
@@ -457,11 +436,22 @@ async getLatestResultsOptimized(customerId, serviceType) {
     ExpressionAttributeValues: {
       ':customerId': customerId,
       ':latest': serviceType === 'ALL' ? 'LATEST#' : `LATEST#${serviceType}#`
-    },
-    ProjectionExpression: 'itemKey, serviceType, itemId, #status, inspectionTime, issuesFound',
-    ExpressionAttributeNames: {
-      '#status': 'status'
     }
+  };
+  
+  return await this.client.query(params);
+}
+
+async getHistoryOptimized(customerId, serviceType, limit) {
+  const params = {
+    TableName: this.tableName,
+    KeyConditionExpression: 'customerId = :customerId AND begins_with(itemKey, :history)',
+    ExpressionAttributeValues: {
+      ':customerId': customerId,
+      ':history': serviceType === 'ALL' ? 'HISTORY#' : `HISTORY#${serviceType}#`
+    },
+    ScanIndexForward: false, // 최신순 정렬
+    Limit: limit
   };
   
   return await this.client.query(params);
@@ -611,18 +601,18 @@ function validateDataIntegrity(item) {
 
 ## 📋 요약
 
-### ✅ **핵심 규칙**
+### ✅ **핵심 규칙 (단순화됨)**
 1. **이중 저장**: LATEST + HISTORY 레코드 동시 저장
 2. **시간순 정렬**: reversedTimestamp로 최신순 조회
 3. **배치 처리**: 여러 항목 동시 저장 시 배치 사용
 4. **에러 처리**: 부분 실패 허용, 중복 저장 방지
-5. **성능 최적화**: 캐싱, 프로젝션, 페이지네이션 적용
+5. **성능 최적화**: 캐싱, 페이지네이션 적용
 
-### 🔍 **조회 패턴**
+### 🔍 **조회 패턴 (단순화됨)**
 - **최신 상태**: LATEST 레코드 조회
-- **히스토리**: HISTORY 레코드 시간순 조회
+- **히스토리**: HISTORY 레코드 시간순 조회 (서비스별 패턴 활용)
 - **특정 검사**: GSI로 inspectionId 기반 조회
-- **필터링**: 서비스 타입, 시간 범위, 상태별 필터
+- **서비스 필터링**: itemKey 패턴으로 서비스별 조회
 
 ### 💾 **저장 패턴**
 - **검사 완료 시**: 즉시 LATEST + HISTORY 저장
