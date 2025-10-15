@@ -230,61 +230,7 @@ class DynamoService {
     }
   }
 
-  /**
-   * 상태별 사용자 목록 조회
-   * @param {string} status - 조회할 상태 (pending, approved, rejected)
-   * @returns {Promise<Object>} 사용자 목록
-   */
-  async getUsersByStatus(status) {
-    try {
-      const params = {
-        TableName: this.tableName,
-        FilterExpression: '#status = :status',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-        },
-        ExpressionAttributeValues: {
-          ':status': status,
-        },
-      };
 
-      const command = new ScanCommand(params);
-      const result = await this.client.send(command);
-
-      return {
-        success: true,
-        users: result.Items || [],
-        count: result.Count || 0,
-      };
-    } catch (error) {
-      throw new Error(`상태별 사용자 조회 실패: ${error.message}`);
-    }
-  }
-
-  /**
-   * 사용자 삭제
-   * @param {string} userId - 사용자 ID
-   * @returns {Promise<Object>} 삭제 결과
-   */
-  async deleteUser(userId) {
-    try {
-      const params = {
-        TableName: this.tableName,
-        Key: { userId },
-        ConditionExpression: 'attribute_exists(userId)',
-      };
-
-      const command = new DeleteCommand(params);
-      await this.client.send(command);
-
-      return { success: true };
-    } catch (error) {
-      if (error.name === 'ConditionalCheckFailedException') {
-        throw new Error('사용자를 찾을 수 없습니다');
-      }
-      throw new Error(`사용자 삭제 실패: ${error.message}`);
-    }
-  }
 
   /**
    * 사용자 타임스탬프 업데이트 (비밀번호 변경 등)

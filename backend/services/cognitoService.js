@@ -2,10 +2,6 @@ const {
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
   AdminInitiateAuthCommand,
-  AdminGetUserCommand,
-  AdminUpdateUserAttributesCommand,
-  AdminDeleteUserCommand,
-  ListUsersCommand,
 } = require('@aws-sdk/client-cognito-identity-provider');
 const { cognitoClient } = require('../config/aws');
 
@@ -102,112 +98,7 @@ class CognitoService {
     }
   }
 
-  /**
-   * 사용자 정보 조회
-   * @param {string} username - 사용자명
-   * @returns {Promise<Object>} 사용자 정보
-   */
-  async getUser(username) {
-    try {
-      const params = {
-        UserPoolId: this.userPoolId,
-        Username: username,
-      };
 
-      const command = new AdminGetUserCommand(params);
-      const result = await this.client.send(command);
-
-      return {
-        success: true,
-        user: {
-          username: result.Username,
-          attributes: result.UserAttributes,
-          enabled: result.Enabled,
-          userStatus: result.UserStatus,
-          createdDate: result.UserCreateDate,
-          lastModifiedDate: result.UserLastModifiedDate,
-        },
-      };
-    } catch (error) {
-      throw new Error(`사용자 조회 실패: ${error.message}`);
-    }
-  }
-
-  /**
-   * 사용자 속성 업데이트
-   * @param {string} username - 사용자명
-   * @param {Array} attributes - 업데이트할 속성 배열
-   * @returns {Promise<Object>} 업데이트 결과
-   */
-  async updateUserAttributes(username, attributes) {
-    try {
-      const params = {
-        UserPoolId: this.userPoolId,
-        Username: username,
-        UserAttributes: attributes,
-      };
-
-      const command = new AdminUpdateUserAttributesCommand(params);
-      await this.client.send(command);
-
-      return { success: true };
-    } catch (error) {
-      throw new Error(`사용자 속성 업데이트 실패: ${error.message}`);
-    }
-  }
-
-  /**
-   * 사용자 삭제
-   * @param {string} username - 사용자명
-   * @returns {Promise<Object>} 삭제 결과
-   */
-  async deleteUser(username) {
-    try {
-      const params = {
-        UserPoolId: this.userPoolId,
-        Username: username,
-      };
-
-      const command = new AdminDeleteUserCommand(params);
-      await this.client.send(command);
-
-      return { success: true };
-    } catch (error) {
-      throw new Error(`사용자 삭제 실패: ${error.message}`);
-    }
-  }
-
-  /**
-   * 모든 사용자 목록 조회
-   * @param {number} limit - 조회할 사용자 수 제한
-   * @returns {Promise<Object>} 사용자 목록
-   */
-  async listUsers(limit = 60) {
-    try {
-      const params = {
-        UserPoolId: this.userPoolId,
-        Limit: limit,
-      };
-
-      const command = new ListUsersCommand(params);
-      const result = await this.client.send(command);
-
-      return {
-        success: true,
-        users: result.Users.map(user => ({
-          username: user.Username,
-          attributes: user.Attributes,
-          enabled: user.Enabled,
-          userStatus: user.UserStatus,
-          createdDate: user.UserCreateDate,
-          lastModifiedDate: user.UserLastModifiedDate,
-
-        })),
-      };
-    } catch (error) {
-      throw new Error(`사용자 목록 조회 실패: ${error.message}`);
-    }
-  }
 
   /**
    * 사용자 비밀번호 변경
