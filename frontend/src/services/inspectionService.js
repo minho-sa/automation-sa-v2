@@ -112,17 +112,7 @@ export const inspectionService = {
 
 
 
-  /**
-   * 사용 가능한 검사 서비스 목록 조회
-   * Requirements: 1.1 - 사용 가능한 검사 유형 목록을 표시
-   * @returns {Promise<Object>} 사용 가능한 서비스 목록
-   */
-  getAvailableServices: async () => {
-    return withRetry(async () => {
-      const response = await api.get('/inspections/services');
-      return response.data;
-    });
-  },
+
 
   /**
    * 검사 취소

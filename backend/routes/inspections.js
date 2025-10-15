@@ -14,12 +14,7 @@ router.use(inspectionLimiter);
 router.use(authenticateToken);
 router.use(requireApprovedUser);
 
-/**
- * GET /api/inspections/services
- * 사용 가능한 검사 서비스 목록 조회
- * Requirements: 1.1 - 사용 가능한 검사 유형 목록을 표시
- */
-router.get('/services', inspectionController.getAvailableServices);
+
 
 /**
  * POST /api/inspections/start

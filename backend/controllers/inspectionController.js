@@ -1,5 +1,5 @@
-const inspectionService = require('../services/inspectionService');
 const historyService = require('../services/historyService');
+const inspectionService = require('../services/inspectionService');
 const { ApiResponse } = require('../models/ApiResponse');
 
 /**
@@ -127,102 +127,7 @@ const getInspectionHistory = async (req, res) => {
     }
 };
 
-/**
- * 사용 가능한 검사 서비스 목록 조회
- * GET /api/inspections/services
- * Requirements: 1.1 - 사용 가능한 검사 유형 목록을 표시
- */
-const getAvailableServices = async (_req, res) => {
-    try {
-        // 사용 가능한 AWS 서비스 목록
-        const availableServices = [
-            {
-                id: 'EC2',
-                name: 'Amazon EC2',
-                description: 'EC2 인스턴스, 보안 그룹, 키 페어 등을 검사합니다',
-                icon: '🖥️',
-                categories: ['SECURITY', 'PERFORMANCE', 'COST'],
-                estimatedDuration: '2-5분',
-                features: [
-                    '보안 그룹 규칙 분석',
-                    '인스턴스 상태 확인',
-                    '키 페어 보안 검사',
-                    '네트워크 ACL 검토'
-                ]
-            },
-            {
-                id: 'RDS',
-                name: 'Amazon RDS',
-                description: 'RDS 데이터베이스 인스턴스의 보안 및 성능을 검사합니다',
-                icon: '🗄️',
-                categories: ['SECURITY', 'PERFORMANCE', 'RELIABILITY'],
-                estimatedDuration: '3-7분',
-                features: [
-                    '데이터베이스 보안 설정',
-                    '백업 구성 확인',
-                    '성능 모니터링 설정',
-                    '암호화 상태 검사'
-                ]
-            },
-            {
-                id: 'S3',
-                name: 'Amazon S3',
-                description: 'S3 버킷의 보안, 권한, 정책을 검사합니다',
-                icon: '🪣',
-                categories: ['SECURITY', 'COMPLIANCE', 'COST'],
-                estimatedDuration: '1-3분',
-                features: [
-                    '버킷 정책 분석',
-                    '퍼블릭 액세스 확인',
-                    '암호화 설정 검토',
-                    '버전 관리 상태'
-                ]
-            },
-            {
-                id: 'IAM',
-                name: 'AWS IAM',
-                description: 'IAM 사용자, 역할, 정책의 보안을 검사합니다',
-                icon: '👤',
-                categories: ['SECURITY', 'COMPLIANCE'],
-                estimatedDuration: '2-4분',
-                features: [
-                    '사용자 권한 분석',
-                    '역할 정책 검토',
-                    'MFA 설정 확인',
-                    '액세스 키 상태'
-                ]
-            },
-            {
-                id: 'VPC',
-                name: 'Amazon VPC',
-                description: 'VPC 네트워크 구성 및 보안을 검사합니다',
-                icon: '🌐',
-                categories: ['SECURITY', 'PERFORMANCE'],
-                estimatedDuration: '3-6분',
-                features: [
-                    'VPC 구성 분석',
-                    '서브넷 설정 검토',
-                    '라우팅 테이블 확인',
-                    'NAT 게이트웨이 상태'
-                ]
-            }
-        ];
 
-        res.status(200).json(ApiResponse.success({
-            message: 'Available services retrieved successfully',
-            services: availableServices,
-            totalCount: availableServices.length
-        }));
-
-    } catch (error) {
-        console.error('Get available services error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while retrieving available services'
-        }));
-    }
-};
 
 /**
  * 서비스별 검사 항목 상태 조회
@@ -270,59 +175,7 @@ const getServiceItemStatus = async (req, res) => {
     }
 };
 
-/**
- * 검사 항목별 히스토리 조회
- * GET /api/inspections/items/history
- */
-const getItemHistory = async (req, res) => {
-    try {
-        const customerId = req.user.userId;
-        const {
-            serviceType,
-            limit = 50
-        } = req.query;
 
-        console.log(`🔍 [InspectionController] Simple item history request - Service: ${serviceType || 'ALL'}, Limit: ${limit}`);
-
-        // 검사 항목 히스토리 조회 (필터링 제거됨)
-        const result = await historyService.getInspectionHistory(customerId, {
-            serviceType,
-            historyMode: 'history',
-            limit: parseInt(limit)
-        });
-
-        if (!result.success) {
-            return res.status(500).json(ApiResponse.error({
-                code: 'ITEM_HISTORY_RETRIEVAL_FAILED',
-                message: 'Failed to retrieve item history',
-                details: result.error
-            }));
-        }
-
-        // 응답 형태로 변환
-        const formattedItems = (result.data.items || []).map(item => ({
-            ...item,
-            type: 'item',
-            displayTime: item.inspectionTime || item.lastInspectionTime,
-            displayId: `${item.serviceType}-${item.itemId}-${item.inspectionTime || item.lastInspectionTime}`
-        }));
-
-        res.status(200).json(ApiResponse.success({
-            message: 'Item history retrieved successfully',
-            items: formattedItems,
-            totalCount: result.data.count || 0,
-            hasMore: result.data.hasMore || false
-        }));
-
-    } catch (error) {
-        console.error('Get item history error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while retrieving item history'
-        }));
-    }
-};
 
 /**
  * 검사 항목 상태 조회 (서비스별 필터링 지원)
@@ -336,7 +189,6 @@ const getAllItemStatus = async (req, res) => {
         console.log(`🔍 [InspectionController] Getting item status for customer ${customerId}, service: ${serviceType || 'ALL'}`);
 
         // 단일 테이블 구조에서 최신 검사 결과 조회
-        const historyService = require('../services/historyService');
         const result = await historyService.getInspectionHistory(customerId, {
             historyMode: 'latest',
             serviceType: serviceType  // 서비스 타입 필터 추가
@@ -433,14 +285,10 @@ const getItemInspectionHistory = async (req, res) => {
     }
 };
 
-// dataConsistencyService 관련 API 제거 - 단순화
-
 module.exports = {
     startInspection,
     getInspectionHistory,
-    getAvailableServices,
     getServiceItemStatus,
     getAllItemStatus,
-    getItemHistory,
     getItemInspectionHistory
 };
