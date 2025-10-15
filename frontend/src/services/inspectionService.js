@@ -159,13 +159,17 @@ export const inspectionService = {
   },
 
   /**
-   * 모든 서비스의 검사 항목 상태 조회
+   * 검사 항목 상태 조회 (서비스별 필터링 지원)
    * Trusted Advisor 스타일 - 각 검사 항목별 최근 상태
-   * @returns {Promise<Object>} 모든 검사 항목 상태
+   * @param {string} serviceType - 서비스 타입 (선택사항, 없으면 모든 서비스)
+   * @returns {Promise<Object>} 검사 항목 상태
    */
-  getAllItemStatus: async () => {
+  getAllItemStatus: async (serviceType = null) => {
     return withRetry(async () => {
-      const response = await api.get('/inspections/items/status');
+      const url = serviceType 
+        ? `/inspections/items/status?serviceType=${serviceType}`
+        : '/inspections/items/status';
+      const response = await api.get(url);
       return response.data;
     });
   },

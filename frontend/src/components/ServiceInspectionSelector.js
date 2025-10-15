@@ -37,24 +37,11 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     };
   }, []);
 
-  // 모든 검사 항목 상태 로드
+  // 초기 로드 시에는 상태를 로드하지 않음 (서비스 선택 시에만 로드)
   const loadAllItemStatuses = async () => {
-    try {
-      setLoadingStatuses(true);
-      
-      const result = await inspectionService.getAllItemStatus();
-      
-      if (result.success) {
-        // API 응답 구조: result.data = { services: { EC2: { security_groups: {...} } } }
-        // itemStatuses는 { EC2: { security_groups: {...} } } 형태여야 함
-        setItemStatuses(result.data.services || {});
-        
-      } else {
-      }
-    } catch (error) {
-    } finally {
-      setLoadingStatuses(false);
-    }
+    // 초기에는 빈 상태로 시작
+    setItemStatuses({});
+    setLoadingStatuses(false);
   };
 
   // 서비스 선택 핸들러
@@ -75,8 +62,31 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     
     setSelectedItems(defaultSelected);
 
-    // 선택된 서비스의 최신 상태는 이미 loadAllItemStatuses에서 로드됨
-    // 별도로 서비스별 상태를 다시 로드할 필요 없음
+    // 선택된 서비스의 최신 상태만 로드
+    await loadServiceItemStatuses(serviceId);
+  };
+
+  // 특정 서비스의 검사 항목 상태 로드
+  const loadServiceItemStatuses = async (serviceId) => {
+    try {
+      setLoadingStatuses(true);
+      
+      const result = await inspectionService.getAllItemStatus(serviceId);
+      
+      if (result.success) {
+        // 기존 상태를 유지하면서 선택된 서비스만 업데이트
+        setItemStatuses(prev => ({
+          ...prev,
+          ...result.data.services
+        }));
+      } else {
+        console.error('Failed to load service item statuses:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading service item statuses:', error);
+    } finally {
+      setLoadingStatuses(false);
+    }
   };
 
   // 검사 항목 선택/해제 핸들러

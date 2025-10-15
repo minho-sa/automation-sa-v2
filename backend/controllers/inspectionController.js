@@ -17,7 +17,7 @@ const { ApiResponse, ApiError } = require('../models/ApiResponse');
 const startInspection = async (req, res) => {
     try {
 
-        
+
         const { serviceType, assumeRoleArn, inspectionConfig = {} } = req.body;
         const customerId = req.user.userId; // JWT 토큰에서 추출
 
@@ -122,7 +122,7 @@ const getInspectionDetails = async (req, res) => {
         }
 
 
-        
+
         // 명시적으로 응답 구조 생성
         const responseData = {
             message: 'Inspection details retrieved successfully',
@@ -134,10 +134,10 @@ const getInspectionDetails = async (req, res) => {
             duration: result.inspection.duration,
             results: result.inspection.results
         };
-        
+
         // ApiResponse 생성 전 확인
         const apiResponse = ApiResponse.success(responseData);
-        
+
         res.status(200).json(apiResponse);
 
     } catch (error) {
@@ -163,7 +163,10 @@ const getInspectionHistory = async (req, res) => {
         console.log(`🔍 [InspectionController] Simple inspection history request - Service: ${serviceType || 'ALL'}`);
 
         // 검사 이력 조회 (단일 테이블 구조)
-        const result = await historyService.getInspectionHistoryList(customerId, { serviceType });
+        const result = await historyService.getInspectionHistory(customerId, {
+            serviceType,
+            aggregated: true
+        });
 
         if (!result.success) {
             return res.status(500).json(ApiResponse.error({
@@ -394,8 +397,8 @@ const getServiceItemStatus = async (req, res) => {
 const getItemHistory = async (req, res) => {
     try {
         const customerId = req.user.userId;
-        const { 
-            serviceType, 
+        const {
+            serviceType,
             limit = 50
         } = req.query;
 
@@ -406,7 +409,7 @@ const getItemHistory = async (req, res) => {
             serviceType,
             limit: parseInt(limit)
         });
-        
+
         if (!result.success) {
             return res.status(500).json(ApiResponse.error({
                 code: 'ITEM_HISTORY_RETRIEVAL_FAILED',
@@ -441,19 +444,23 @@ const getItemHistory = async (req, res) => {
 };
 
 /**
- * 모든 서비스의 검사 항목 상태 조회
- * GET /api/inspections/items/status
+ * 검사 항목 상태 조회 (서비스별 필터링 지원)
+ * GET /api/inspections/items/status?serviceType=EC2
  */
 const getAllItemStatus = async (req, res) => {
     try {
         const customerId = req.user.userId;
-        console.log(`🔍 [InspectionController] Getting all item status for customer ${customerId}`);
-
+        const { serviceType } = req.query;
+        
+        console.log(`🔍 [InspectionController] Getting item status for customer ${customerId}, service: ${serviceType || 'ALL'}`);
 
         // 단일 테이블 구조에서 최신 검사 결과 조회
         const historyService = require('../services/historyService');
-        const result = await historyService.getLatestInspectionResults(customerId);
-        
+        const result = await historyService.getInspectionHistory(customerId, {
+            historyMode: 'latest',
+            serviceType: serviceType  // 서비스 타입 필터 추가
+        });
+
         console.log(`🔍 [InspectionController] History service result:`, {
             success: result.success,
             hasData: !!result.data,
@@ -481,7 +488,7 @@ const getAllItemStatus = async (req, res) => {
             'Pragma': 'no-cache',
             'Expires': '0'
         });
-        
+
         res.status(200).json(ApiResponse.success(result.data));
 
     } catch (error) {
@@ -501,8 +508,8 @@ const getAllItemStatus = async (req, res) => {
 const getItemInspectionHistory = async (req, res) => {
     try {
         const customerId = req.user.userId;
-        const { 
-            serviceType, 
+        const {
+            serviceType,
             historyMode = 'history',
             lastEvaluatedKey
         } = req.query;
@@ -513,7 +520,7 @@ const getItemInspectionHistory = async (req, res) => {
         });
 
         // 항목별 검사 이력 조회 (페이지네이션 지원)
-        const result = await historyService.getItemInspectionHistory(customerId, {
+        const result = await historyService.getInspectionHistory(customerId, {
             serviceType,
             historyMode,
             lastEvaluatedKey
@@ -529,11 +536,10 @@ const getItemInspectionHistory = async (req, res) => {
 
         res.status(200).json(ApiResponse.success({
             message: 'Item inspection history retrieved successfully',
-            items: result.data.items,
-            count: result.data.count,
-            hasMore: result.data.hasMore,
-            lastEvaluatedKey: result.data.lastEvaluatedKey,
-            scannedCount: result.data.scannedCount
+            items: result.data.items || [],
+            count: result.data.count || 0,
+            hasMore: result.data.hasMore || false,
+            lastEvaluatedKey: result.data.lastEvaluatedKey || null
         }));
 
     } catch (error) {

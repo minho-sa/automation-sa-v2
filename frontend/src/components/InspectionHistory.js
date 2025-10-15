@@ -129,7 +129,6 @@ const InspectionHistory = () => {
           newItems: newData.length,
           totalItems: finalData.length,
           hasMore: result.data.hasMore,
-          scannedCount: result.data.scannedCount,
           actualPageSize: newData.length // 실제 받은 데이터 개수
         });
       } else {
