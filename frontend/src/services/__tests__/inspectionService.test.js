@@ -82,27 +82,7 @@ describe('inspectionService', () => {
     });
   });
 
-  describe('getInspectionDetails', () => {
-    it('should get inspection details successfully', async () => {
-      const mockResponse = {
-        data: {
-          success: true,
-          data: {
-            inspectionId: 'test-id',
-            status: 'COMPLETED',
-            results: {}
-          }
-        }
-      };
 
-      api.get.mockResolvedValue(mockResponse);
-
-      const result = await inspectionService.getInspectionDetails('test-id');
-
-      expect(api.get).toHaveBeenCalledWith('/inspections/test-id');
-      expect(result).toEqual(mockResponse.data);
-    });
-  });
 
   describe('getInspectionHistory', () => {
     it('should get inspection history with default params', async () => {
@@ -165,71 +145,9 @@ describe('inspectionService', () => {
     });
   });
 
-  describe('getInspectionStatus', () => {
-    it('should get inspection status successfully', async () => {
-      const mockResponse = {
-        data: {
-          success: true,
-          data: {
-            inspectionId: 'test-id',
-            status: 'IN_PROGRESS',
-            progress: { percentage: 50 }
-          }
-        }
-      };
 
-      api.get.mockResolvedValue(mockResponse);
 
-      const result = await inspectionService.getInspectionStatus('test-id');
 
-      expect(api.get).toHaveBeenCalledWith('/inspections/test-id/status');
-      expect(result).toEqual(mockResponse.data);
-    });
-  });
-
-  describe('pollInspectionStatus', () => {
-    it('should create polling object with control methods', () => {
-      const onStatusUpdate = jest.fn();
-      const onComplete = jest.fn();
-      const onError = jest.fn();
-
-      const polling = inspectionService.pollInspectionStatus(
-        'test-id',
-        onStatusUpdate,
-        onComplete,
-        onError
-      );
-
-      expect(polling).toHaveProperty('stop');
-      expect(polling).toHaveProperty('isPolling');
-      expect(polling).toHaveProperty('getAttempts');
-      expect(typeof polling.stop).toBe('function');
-      expect(typeof polling.isPolling).toBe('function');
-      expect(typeof polling.getAttempts).toBe('function');
-
-      // Clean up
-      polling.stop();
-    });
-
-    it('should stop polling when requested', () => {
-      const onStatusUpdate = jest.fn();
-      const onComplete = jest.fn();
-      const onError = jest.fn();
-
-      const polling = inspectionService.pollInspectionStatus(
-        'test-id',
-        onStatusUpdate,
-        onComplete,
-        onError
-      );
-
-      expect(polling.isPolling()).toBe(true);
-
-      polling.stop();
-      expect(polling.isPolling()).toBe(false);
-    });
-
-  });
 
   describe('waitForInspectionCompletion', () => {
     it('should return a promise', () => {

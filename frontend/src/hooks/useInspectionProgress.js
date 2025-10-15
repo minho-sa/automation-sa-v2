@@ -246,34 +246,12 @@ export const useInspectionProgress = (inspectionId, options = {}) => {
       connectionType: 'none'
     }));
 
-    // 검사 완료 시 실제 검사 결과를 가져옴 (한 번만)
-    try {
-      const inspectionResult = await inspectionService.getInspectionDetails(inspectionId);
-      
-      if (inspectionResult.success && inspectionResult.data) {
-        
-        if (onComplete) {
-          onComplete({
-            ...completionData,
-            ...inspectionResult.data, // 실제 검사 결과 포함
-            progressHistory: [...progressHistoryRef.current]
-          });
-        }
-      } else {
-        if (onComplete) {
-          onComplete({
-            ...completionData,
-            progressHistory: [...progressHistoryRef.current]
-          });
-        }
-      }
-    } catch (error) {
-      if (onComplete) {
-        onComplete({
-          ...completionData,
-          progressHistory: [...progressHistoryRef.current]
-        });
-      }
+    // 검사 완료 처리
+    if (onComplete) {
+      onComplete({
+        ...completionData,
+        progressHistory: [...progressHistoryRef.current]
+      });
     }
   }, [onComplete, inspectionId, isMonitoring]);
 

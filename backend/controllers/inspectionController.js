@@ -82,71 +82,6 @@ const startInspection = async (req, res) => {
             details: 'An unexpected error occurred while starting the inspection'
         }));
     }
-};/**
- * 검사
- 상세 조회
- * GET /api/inspections/:id
- * Requirements: 1.2 - 고객이 특정 검사 결과를 선택하여 상세 조회
- */
-const getInspectionDetails = async (req, res) => {
-    try {
-        const { id: inspectionId } = req.params;
-        const customerId = req.user.userId;
-
-        if (!inspectionId) {
-            return res.status(400).json(ApiResponse.error({
-                code: 'MISSING_INSPECTION_ID',
-                message: 'Inspection ID is required',
-                details: 'Please provide a valid inspection ID'
-            }));
-        }
-
-        // 검사 결과 조회
-        const result = await inspectionService.getInspectionResult(inspectionId, customerId);
-
-        if (!result.success) {
-            if (result.error?.code === 'INSPECTION_NOT_FOUND') {
-                return res.status(404).json(ApiResponse.error({
-                    code: 'INSPECTION_NOT_FOUND',
-                    message: 'Inspection not found',
-                    details: 'The requested inspection could not be found or you do not have access to it'
-                }));
-            }
-
-            return res.status(500).json(ApiResponse.error({
-                code: result.error?.code || 'INSPECTION_RETRIEVAL_FAILED',
-                message: result.error?.message || 'Failed to retrieve inspection details',
-                details: result.error?.details || 'An error occurred while retrieving the inspection'
-            }));
-        }
-
-
-
-        // 명시적으로 응답 구조 생성
-        const responseData = {
-            message: 'Inspection details retrieved successfully',
-            inspectionId: result.inspection.inspectionId,
-            serviceType: result.inspection.serviceType,
-            status: result.inspection.status,
-            startTime: result.inspection.startTime,
-            endTime: result.inspection.endTime,
-            duration: result.inspection.duration,
-            results: result.inspection.results
-        };
-
-        // ApiResponse 생성 전 확인
-        const apiResponse = ApiResponse.success(responseData);
-
-        res.status(200).json(apiResponse);
-
-    } catch (error) {
-        console.error('Get inspection details error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while retrieving inspection details'
-        }));
-    }
 };
 
 /**
@@ -188,63 +123,6 @@ const getInspectionHistory = async (req, res) => {
             code: 'INTERNAL_ERROR',
             message: 'Internal server error',
             details: 'An unexpected error occurred while retrieving inspection history'
-        }));
-    }
-};/**
- *
- 검사 상태 조회
- * GET /api/inspections/:id/status
- * Requirements: 6.3 - 검사 진행 상황을 실시간으로 확인
- */
-const getInspectionStatus = async (req, res) => {
-    try {
-        const { id: inspectionId } = req.params;
-        const customerId = req.user.userId;
-
-        if (!inspectionId) {
-            return res.status(400).json(ApiResponse.error({
-                code: 'MISSING_INSPECTION_ID',
-                message: 'Inspection ID is required',
-                details: 'Please provide a valid inspection ID'
-            }));
-        }
-
-        // 검사 상태 조회
-        const result = await inspectionService.getInspectionStatus(inspectionId, customerId);
-
-        if (!result.success) {
-            if (result.error?.code === 'INSPECTION_NOT_FOUND') {
-                return res.status(404).json(ApiResponse.error({
-                    code: 'INSPECTION_NOT_FOUND',
-                    message: 'Inspection not found',
-                    details: 'The requested inspection could not be found or you do not have access to it'
-                }));
-            }
-
-            return res.status(500).json(ApiResponse.error({
-                code: result.error?.code || 'STATUS_RETRIEVAL_FAILED',
-                message: result.error?.message || 'Failed to retrieve inspection status',
-                details: result.error?.details || 'An error occurred while retrieving the inspection status'
-            }));
-        }
-
-        res.status(200).json(ApiResponse.success({
-            message: 'Inspection status retrieved successfully',
-            inspectionId: result.inspectionId,
-            status: result.status,
-            progress: result.progress,
-            estimatedTimeRemaining: result.estimatedTimeRemaining,
-            currentStep: result.currentStep,
-            startTime: result.startTime,
-            lastUpdated: result.lastUpdated
-        }));
-
-    } catch (error) {
-        console.error('Get inspection status error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while retrieving inspection status'
         }));
     }
 };
@@ -559,9 +437,7 @@ const getItemInspectionHistory = async (req, res) => {
 
 module.exports = {
     startInspection,
-    getInspectionDetails,
     getInspectionHistory,
-    getInspectionStatus,
     getAvailableServices,
     getServiceItemStatus,
     getAllItemStatus,

@@ -433,80 +433,9 @@ class InspectionService {
     }
   }
 
-  /**
-   * 검사 상태 조회
-   * @param {string} inspectionId - 검사 ID
-   * @returns {Object} 검사 상태 정보
-   */
-  getInspectionStatus(inspectionId) {
-    const inspectionStatus = this.activeInspections.get(inspectionId);
 
-    if (!inspectionStatus) {
-      return {
-        success: false,
-        error: {
-          code: 'INSPECTION_NOT_FOUND',
-          message: 'Inspection not found or has been completed'
-        }
-      };
-    }
 
-    return {
-      success: true,
-      inspectionId,
-      status: inspectionStatus.status,
-      progress: inspectionStatus.progress,
-      estimatedTimeRemaining: inspectionStatus.estimatedTimeRemaining,
-      currentStep: inspectionStatus.currentStep,
-      startTime: inspectionStatus.startTime,
-      lastUpdated: inspectionStatus.lastUpdated
-    };
-  }
 
-  /**
-   * 검사 결과 조회
-   * @param {string} inspectionId - 검사 ID
-   * @param {string} customerId - 고객 ID
-   * @returns {Promise<Object>} 검사 결과
-   */
-  async getInspectionResult(inspectionId, customerId) {
-    try {
-      const historyService = require('./historyService');
-      const historyResult = await historyService.getInspectionHistory(customerId, inspectionId);
-
-      if (!historyResult.success) {
-        return {
-          success: false,
-          error: {
-            code: 'INSPECTION_NOT_FOUND',
-            message: 'Inspection not found',
-            details: 'The requested inspection could not be found or you do not have access to it'
-          }
-        };
-      }
-
-      return {
-        success: true,
-        inspection: historyResult.data
-      };
-
-    } catch (error) {
-      this.logger.error('Failed to get inspection result', {
-        inspectionId,
-        customerId,
-        error: error.message
-      });
-
-      return {
-        success: false,
-        error: {
-          code: 'INSPECTION_RETRIEVAL_FAILED',
-          message: 'Failed to retrieve inspection result',
-          details: error.message
-        }
-      };
-    }
-  }
 
   // ========== 헬퍼 메서드들 ==========
 

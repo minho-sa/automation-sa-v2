@@ -79,18 +79,7 @@ export const inspectionService = {
     });
   },
 
-  /**
-   * 검사 상세 조회
-   * Requirements: 1.1 - 고객이 특정 검사 결과를 선택하여 상세 조회
-   * @param {string} inspectionId - 검사 ID
-   * @returns {Promise<Object>} 검사 상세 결과
-   */
-  getInspectionDetails: async (inspectionId) => {
-    return withRetry(async () => {
-      const response = await api.get(`/inspections/${inspectionId}`);
-      return response.data;
-    });
-  },
+
 
   /**
    * 검사 이력 조회 (필터링 단순화됨)
@@ -119,18 +108,7 @@ export const inspectionService = {
     });
   },
 
-  /**
-   * 검사 상태 조회
-   * Requirements: 6.3 - 검사 진행 상황을 실시간으로 확인
-   * @param {string} inspectionId - 검사 ID
-   * @returns {Promise<Object>} 검사 상태
-   */
-  getInspectionStatus: async (inspectionId) => {
-    return withRetry(async () => {
-      const response = await api.get(`/inspections/${inspectionId}/status`);
-      return response.data;
-    });
-  },
+
 
 
 

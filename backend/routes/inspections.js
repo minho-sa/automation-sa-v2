@@ -58,19 +58,9 @@ router.get('/items/status', inspectionController.getAllItemStatus);
  */
 router.get('/services/:serviceType/items', inspectionController.getServiceItemStatus);
 
-/**
- * GET /api/inspections/:id
- * 검사 상세 조회
- * Requirements: 1.2 - 고객이 특정 검사 결과를 선택하여 상세 조회
- */
-router.get('/:id', inspectionController.getInspectionDetails);
 
-/**
- * GET /api/inspections/:id/status
- * 검사 상태 조회
- * Requirements: 6.3 - 검사 진행 상황을 실시간으로 확인
- */
-router.get('/:id/status', inspectionController.getInspectionStatus);
+
+
 
 // dataConsistency 관련 라우트 제거 - 단순화
 
