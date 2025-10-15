@@ -14,8 +14,7 @@ const InspectionItemResultSchema = {
 
   // 핵심 데이터
   serviceType: 'string', // EC2, RDS, S3, IAM - 서비스별 분류
-  itemId: 'string', // dangerous-ports, bucket-encryption 등 - 프론트 매핑용
-  category: 'string', // security, performance, cost - 카테고리별 분류
+  itemId: 'string', // dangerous-ports, bucket-encryption 등 - 프론트엔드에서 카테고리 매핑
   findings: 'list', // 발견된 문제 배열 - 핵심 데이터
 
   // 메타데이터
@@ -23,6 +22,7 @@ const InspectionItemResultSchema = {
   inspectionTime: 'number' // 검사 시간 (Unix timestamp)
 
   // 제거된 필드들 (프론트엔드에서 계산):
+  // - category: inspectionItems.js에서 itemId 기반으로 매핑
   // - issuesFound: findings.length로 계산
   // - status: findings 유무 + baseSeverity로 결정
   // - totalResources: 실제 사용되지 않음

@@ -1,5 +1,4 @@
 const {
-  PutCommand,
   QueryCommand,
 } = require('@aws-sdk/lib-dynamodb');
 // .env 파일 로드 확인
@@ -25,63 +24,7 @@ class HistoryService {
     this.tableName = process.env.AWS_DYNAMODB_INSPECTION_ITEMS_TABLE || 'InspectionItemResults';
   }
 
-  /**
-   * 검사 이력 저장
-   * @param {Object} inspectionData - 검사 데이터
-   * @returns {Promise<Object>} 저장 결과
-   */
-  async saveInspectionHistory(inspectionData) {
-    try {
-      const inspectionId = inspectionData.inspectionId;
-      if (!inspectionId) {
-        throw new Error('inspectionId is required');
-      }
 
-      const timestamp = Date.now();
-
-      // 검사 결과에 따라 상태 결정
-      const findings = inspectionData.results.findings || [];
-      const status = findings.length > 0 ? 'FAILED' : 'COMPLETED';
-
-      const historyRecord = {
-        customerId: inspectionData.customerId,
-        inspectionId,
-        serviceType: inspectionData.serviceType,
-        status: status,
-        startTime: inspectionData.startTime || timestamp,
-        endTime: inspectionData.endTime || timestamp,
-        duration: inspectionData.duration || 0,
-        timestamp,
-        results: {
-          summary: inspectionData.results.summary || {},
-          findings: inspectionData.results.findings || []
-        },
-        assumeRoleArn: inspectionData.assumeRoleArn,
-        metadata: {
-          version: '1.0',
-          inspectorVersion: inspectionData.metadata?.inspectorVersion || 'unknown',
-          ...inspectionData.metadata
-        }
-      };
-
-      const params = {
-        TableName: this.tableName,
-        Item: historyRecord
-      };
-
-      const command = new PutCommand(params);
-      await this.client.send(command);
-
-      return {
-        success: true,
-        inspectionId,
-        data: historyRecord
-      };
-    } catch (error) {
-      console.error('검사 이력 저장 실패:', error);
-      throw new Error(`검사 이력 저장 실패: ${error.message}`);
-    }
-  }
 
 
 
@@ -184,7 +127,6 @@ class HistoryService {
             // 전체 상세 정보 (어차피 동일한 RCU)
             findings: findings,
             // 추가 메타데이터
-            category: item.category,
             itemId: itemId,
             serviceType: serviceType
           };

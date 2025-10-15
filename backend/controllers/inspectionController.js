@@ -1,7 +1,6 @@
 const inspectionService = require('../services/inspectionService');
 const historyService = require('../services/historyService');
-const inspectionItemService = require('../services/inspectionItemService');
-const { ApiResponse, ApiError } = require('../models/ApiResponse');
+const { ApiResponse } = require('../models/ApiResponse');
 
 /**
  * Inspection Controller
@@ -255,7 +254,7 @@ const getInspectionStatus = async (req, res) => {
  * GET /api/inspections/services
  * Requirements: 1.1 - 사용 가능한 검사 유형 목록을 표시
  */
-const getAvailableServices = async (req, res) => {
+const getAvailableServices = async (_req, res) => {
     try {
         // 사용 가능한 AWS 서비스 목록
         const availableServices = [
@@ -364,7 +363,10 @@ const getServiceItemStatus = async (req, res) => {
             }));
         }
 
-        const result = await inspectionItemService.getServiceItemResults(customerId, serviceType);
+        const result = await historyService.getInspectionHistory(customerId, {
+            serviceType,
+            historyMode: 'latest'
+        });
 
         if (!result.success) {
             return res.status(500).json(ApiResponse.error({
@@ -377,7 +379,7 @@ const getServiceItemStatus = async (req, res) => {
         res.status(200).json(ApiResponse.success({
             message: 'Service item status retrieved successfully',
             serviceType,
-            items: result.data
+            items: result.data.services[serviceType] || {}
         }));
 
     } catch (error) {
@@ -405,8 +407,9 @@ const getItemHistory = async (req, res) => {
         console.log(`🔍 [InspectionController] Simple item history request - Service: ${serviceType || 'ALL'}, Limit: ${limit}`);
 
         // 검사 항목 히스토리 조회 (필터링 제거됨)
-        const result = await inspectionItemService.getItemHistory(customerId, {
+        const result = await historyService.getInspectionHistory(customerId, {
             serviceType,
+            historyMode: 'history',
             limit: parseInt(limit)
         });
 
@@ -419,18 +422,18 @@ const getItemHistory = async (req, res) => {
         }
 
         // 응답 형태로 변환
-        const formattedItems = result.data.map(item => ({
+        const formattedItems = (result.data.items || []).map(item => ({
             ...item,
             type: 'item',
-            displayTime: item.lastInspectionTime,
-            displayId: `${item.serviceType}-${item.itemId}-${item.lastInspectionTime}`
+            displayTime: item.inspectionTime || item.lastInspectionTime,
+            displayId: `${item.serviceType}-${item.itemId}-${item.inspectionTime || item.lastInspectionTime}`
         }));
 
         res.status(200).json(ApiResponse.success({
             message: 'Item history retrieved successfully',
             items: formattedItems,
-            totalCount: result.count,
-            hasMore: result.hasMore
+            totalCount: result.data.count || 0,
+            hasMore: result.data.hasMore || false
         }));
 
     } catch (error) {

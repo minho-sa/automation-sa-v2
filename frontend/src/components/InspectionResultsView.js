@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { inspectionItems, severityColors, severityIcons } from '../data/inspectionItems';
+import { getItemInfo } from '../utils/itemMappings';
 import './InspectionResultsView.css';
 
 const InspectionResultsView = ({ inspectionData, onBackToSelection }) => {
@@ -22,23 +23,16 @@ const InspectionResultsView = ({ inspectionData, onBackToSelection }) => {
   const { results } = inspectionData;
   const serviceInfo = inspectionItems[inspectionData.serviceType];
 
-  // 필터링된 결과
+  // 필터링된 결과 - 프론트엔드에서 카테고리 결정
   const filteredFindings = results.findings?.filter(finding => {
-    const categoryMatch = selectedCategory === 'all' || finding.category === selectedCategory.toUpperCase();
+    // itemId를 통해 카테고리 정보 가져오기
+    const itemInfo = getItemInfo(inspectionData.serviceType, finding.itemId);
+    const categoryId = itemInfo?.categoryId || 'security';
+    
+    const categoryMatch = selectedCategory === 'all' || categoryId === selectedCategory;
     const severityMatch = selectedSeverity === 'all' || finding.riskLevel === selectedSeverity;
     return categoryMatch && severityMatch;
   }) || [];
-
-  // 카테고리별 통계
-  const categoryStats = {};
-  results.findings?.forEach(finding => {
-    const category = finding.category || 'OTHER';
-    if (!categoryStats[category]) {
-      categoryStats[category] = { total: 0, critical: 0, high: 0, medium: 0, low: 0 };
-    }
-    categoryStats[category].total++;
-    categoryStats[category][finding.riskLevel?.toLowerCase() || 'low']++;
-  });
 
   return (
     <div className="inspection-results-view">
@@ -184,9 +178,9 @@ const InspectionResultsView = ({ inspectionData, onBackToSelection }) => {
               </div>
               
               <div className="finding-footer">
-                <span className="category-tag">{finding.category}</span>
-
-                {/* timestamp 제거 - 검사 시간은 상위 레벨에서 관리 */}
+                <span className="category-tag">
+                  {getItemInfo(inspectionData.serviceType, finding.itemId)?.categoryName || '보안'}
+                </span>
               </div>
             </div>
           ))

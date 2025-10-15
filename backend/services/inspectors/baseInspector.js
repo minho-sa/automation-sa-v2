@@ -285,7 +285,6 @@ class BaseInspector {
     return [{
       serviceType: this.serviceType,
       itemId: inspectionConfig.targetItem,
-      category: this.getCategoryForItem(inspectionConfig.targetItem),
       status: status,
       totalResources: this.metadata.resourcesScanned || 0,
       issuesFound: this.findings.length,
@@ -322,7 +321,6 @@ class BaseInspector {
     return [{
       serviceType: this.serviceType,
       itemId: 'all',
-      category: 'security',
       status: status,
       riskLevel: riskLevel,
       totalResources: this.metadata.resourcesScanned || 0,
@@ -331,39 +329,7 @@ class BaseInspector {
     }];
   }
 
-  /**
-   * 항목별 카테고리 결정
-   * @param {string} itemId - 항목 ID
-   * @returns {string} 카테고리
-   */
-  getCategoryForItem(itemId) {
-    const categoryMap = {
-      // 보안 관련
-      'dangerous-ports': 'security',
 
-      'ebs-encryption': 'security',
-      'bucket-encryption': 'security',
-      'bucket-public-access': 'security',
-      'overprivileged-user-policies': 'security',
-      'overprivileged-role-policies': 'security',
-
-      // 비용 최적화
-      'unused-security-groups': 'cost-optimization',
-      'unused-elastic-ip': 'cost-optimization',
-      'old-snapshots': 'cost-optimization',
-      'stopped-instances': 'cost-optimization',
-      'unused-policies': 'cost-optimization',
-
-      // 운영 효율성
-      'termination-protection': 'operational-excellence',
-      'ebs-volume-version': 'operational-excellence',
-      'bucket_versioning': 'operational_excellence',
-      'bucket_lifecycle': 'operational_excellence',
-      'bucket_logging': 'operational_excellence'
-    };
-
-    return categoryMap[itemId] || 'security';
-  }
 
   /**
    * 부분 결과 구성 (오류 발생 시)
