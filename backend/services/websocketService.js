@@ -30,9 +30,7 @@ class WebSocketService {
     this.wss.on('connection', this.handleConnection.bind(this));
     this.wss.on('error', this.handleError.bind(this));
 
-    this.logger.info('WebSocket server initialized', {
-      path: '/ws/inspections'
-    });
+
 
     // Cleanup disconnected clients periodically (increased interval for long-running inspections)
     setInterval(() => {
@@ -97,11 +95,7 @@ class WebSocketService {
     }
     this.userConnections.get(userId).add(ws);
 
-    this.logger.info('WebSocket client connected', {
-      userId,
-      connectionId,
-      totalConnections: this.wss.clients.size
-    });
+
 
     // Set up ping/pong for connection health
     ws.on('pong', () => {
@@ -230,28 +224,13 @@ class WebSocketService {
     this.clients.get(inspectionId).add(ws);
     ws.subscribedInspections.add(inspectionId);
 
-    const subscriberCount = this.clients.get(inspectionId).size;
-    
-
-
-    this.logger.info('Client subscribed to inspection', {
-      userId: ws.userId,
-      connectionId: ws.connectionId,
-      inspectionId,
-      subscriberCount
-    });
-
-    const confirmationMessage = {
+    this.sendMessage(ws, {
       type: 'subscription_confirmed',
       data: {
         inspectionId,
-        timestamp: Date.now(),
-        subscriberCount
+        timestamp: Date.now()
       }
-    };
-    
-
-    this.sendMessage(ws, confirmationMessage);
+    });
   }
 
   /**
@@ -275,12 +254,6 @@ class WebSocketService {
     }
     ws.subscribedInspections.delete(inspectionId);
 
-    this.logger.info('Client unsubscribed from inspection', {
-      userId: ws.userId,
-      connectionId: ws.connectionId,
-      inspectionId
-    });
-
     this.sendMessage(ws, {
       type: 'unsubscription_confirmed',
       data: {
@@ -298,14 +271,6 @@ class WebSocketService {
    */
   handleDisconnection(ws, code, reason) {
     const userId = ws.userId;
-    
-    console.log(`🔌 [WebSocketService] Client disconnecting:`, {
-      userId,
-      connectionId: ws.connectionId,
-      code,
-      reason: reason?.toString(),
-      subscribedInspections: Array.from(ws.subscribedInspections || [])
-    });
     const connectionId = ws.connectionId;
 
     // Remove from user connections
@@ -326,13 +291,7 @@ class WebSocketService {
       }
     });
 
-    this.logger.info('WebSocket client disconnected', {
-      userId,
-      connectionId,
-      code,
-      reason: reason?.toString(),
-      totalConnections: this.wss.clients.size
-    });
+
   }
 
   /**
@@ -368,23 +327,8 @@ class WebSocketService {
       }
     };
 
-    let successCount = 0;
-    let errorCount = 0;
-
     subscribers.forEach(ws => {
-      if (this.sendMessage(ws, message)) {
-        successCount++;
-      } else {
-        errorCount++;
-      }
-    });
-
-    this.logger.debug('Progress update broadcasted', {
-      inspectionId,
-      subscriberCount: subscribers.size,
-      successCount,
-      errorCount,
-      progress: progressData.progress?.percentage
+      this.sendMessage(ws, message);
     });
   }
 
@@ -413,12 +357,6 @@ class WebSocketService {
     subscribers.forEach(ws => {
       this.sendMessage(ws, message);
     });
-
-    this.logger.info('Status change broadcasted', {
-      inspectionId,
-      subscriberCount: subscribers.size,
-      status: statusData.status
-    });
   }
 
   /**
@@ -430,15 +368,6 @@ class WebSocketService {
   broadcastInspectionComplete(inspectionId, completionData) {
     const subscribers = this.clients.get(inspectionId);
     if (!subscribers || subscribers.size === 0) {
-      // 구독자가 없는 경우 전체 연결된 클라이언트에게 글로벌 알림 전송
-      if (completionData.batchId === inspectionId) {
-        this.broadcastToAllClients({
-          type: 'batch_complete',
-          ...completionData,
-          inspectionId,
-          timestamp: Date.now()
-        });
-      }
       return;
     }
 
@@ -454,24 +383,8 @@ class WebSocketService {
       }
     };
 
-    let successCount = 0;
-    let errorCount = 0;
-
     subscribers.forEach(ws => {
-      if (this.sendMessage(ws, message)) {
-        successCount++;
-      } else {
-        errorCount++;
-      }
-    });
-
-    this.logger.info('Inspection completion broadcasted', {
-      inspectionId,
-      subscriberCount: subscribers.size,
-      status: completionData.status,
-      duration: completionData.duration,
-      successCount,
-      errorCount
+      this.sendMessage(ws, message);
     });
   }
 
@@ -521,36 +434,10 @@ class WebSocketService {
       ws.ping();
     });
 
-    if (cleanedCount > 0) {
-      this.logger.info('Cleaned up disconnected clients', {
-        cleanedCount,
-        activeConnections: this.wss.clients.size
-      });
-    }
+
   }
 
-  /**
-   * Get connection statistics
-   * @returns {Object} Connection statistics
-   */
-  getConnectionStats() {
-    const totalConnections = this.wss ? this.wss.clients.size : 0;
-    const totalUsers = this.userConnections.size;
-    const totalInspections = this.clients.size;
 
-    const inspectionStats = {};
-    this.clients.forEach((subscribers, inspectionId) => {
-      inspectionStats[inspectionId] = subscribers.size;
-    });
-
-    return {
-      totalConnections,
-      totalUsers,
-      totalInspections,
-      inspectionStats,
-      timestamp: Date.now()
-    };
-  }
 
   /**
    * Generate unique connection ID
@@ -560,36 +447,7 @@ class WebSocketService {
     return `conn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  /**
-   * Broadcast to all connected clients (global notification)
-   * @param {Object} messageData - Message data to broadcast
-   */
-  broadcastToAllClients(messageData) {
-    if (!this.wss || !this.wss.clients) {
-      return;
-    }
 
-    const message = {
-      type: 'global_notification',
-      data: {
-        ...messageData,
-        timestamp: Date.now()
-      }
-    };
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    this.wss.clients.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) {
-        if (this.sendMessage(ws, message)) {
-          successCount++;
-        } else {
-          errorCount++;
-        }
-      }
-    });
-  }
 
   /**
    * Move subscribers from individual inspection ID to batch ID
@@ -627,58 +485,12 @@ class WebSocketService {
     // 기존 개별 검사 ID 구독자 제거
     this.clients.delete(fromInspectionId);
 
-    // 이동 확인 메시지를 구독자들에게 전송
-    if (batchSubscribers.size > 0) {
-      const firstSubscriber = Array.from(batchSubscribers)[0];
-      this.sendMessage(firstSubscriber, {
-        type: 'subscription_moved',
-        data: {
-          fromInspectionId,
-          toBatchId,
-          timestamp: Date.now(),
-          message: 'Your subscription has been moved to batch updates'
-        }
-      });
-    }
+
 
     return movedCount > 0;
   }
 
-  /**
-   * Force move all active subscribers to batch ID (emergency method)
-   * @param {string} batchId - Target batch ID
-   * @param {Array} inspectionIds - Array of inspection IDs to move from
-   */
-  forceMoveToBatch(batchId, inspectionIds) {
-    if (!this.clients.has(batchId)) {
-      this.clients.set(batchId, new Set());
-    }
-    const batchSubscribers = this.clients.get(batchId);
 
-    let totalMoved = 0;
-
-    // 모든 개별 검사 ID에서 구독자 이동
-    inspectionIds.forEach(inspectionId => {
-      const subscribers = this.clients.get(inspectionId);
-      if (subscribers && subscribers.size > 0) {
-        subscribers.forEach(ws => {
-          if (!batchSubscribers.has(ws)) {
-            batchSubscribers.add(ws);
-            totalMoved++;
-          }
-          // 웹소켓 객체의 구독 정보도 업데이트
-          if (ws.subscribedInspections) {
-            ws.subscribedInspections.delete(inspectionId);
-            ws.subscribedInspections.add(batchId);
-          }
-        });
-
-        this.clients.delete(inspectionId);
-      }
-    });
-
-    return totalMoved;
-  }
 
   /**
    * Clean up batch subscribers
@@ -718,18 +530,7 @@ class WebSocketService {
     };
   }
 
-  /**
-   * Shutdown WebSocket server
-   */
-  shutdown() {
-    if (this.wss) {
-      this.wss.clients.forEach(ws => {
-        ws.close(1001, 'Server shutting down');
-      });
-      this.wss.close();
-      this.logger.info('WebSocket server shut down');
-    }
-  }
+
 }
 
 // Create singleton instance

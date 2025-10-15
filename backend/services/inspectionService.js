@@ -9,7 +9,8 @@
  * - Assume Role 처리
  */
 
-const { STSClient, AssumeRoleCommand } = require('@aws-sdk/client-sts');
+const { AssumeRoleCommand } = require('@aws-sdk/client-sts');
+const stsService = require('./stsService');
 const { v4: uuidv4 } = require('uuid');
 // InspectionResult 제거 - InspectionItemResult만 사용
 const InspectionStatus = require('../models/InspectionStatus');
@@ -18,7 +19,6 @@ const webSocketService = require('./websocketService');
 
 class InspectionService {
   constructor() {
-    this.stsClient = null;
     this.activeInspections = new Map();
     this.activeBatches = new Map();
 
@@ -101,7 +101,6 @@ class InspectionService {
       // 배치 정보 등록
       this.activeBatches.set(batchId, {
         inspectionIds: inspectionJobs.map(job => job.inspectionId),
-        completedIds: [],
         totalItems: inspectionJobs.length,
         startTime: Date.now()
       });
@@ -117,47 +116,37 @@ class InspectionService {
 
         this.activeInspections.set(job.inspectionId, inspectionStatus);
 
-        // 검사 시작 상태 저장
-        await this.saveInspectionStart(customerId, job.inspectionId, serviceType, assumeRoleArn, {
+        // 검사 시작 로그
+        this.logger.info('Inspection started', {
+          customerId,
+          inspectionId: job.inspectionId,
+          serviceType,
+          assumeRoleArn,
           batchId,
           itemId: job.itemId
         });
       }
 
+      // 초기 배치 상태 전송 (한 번만)
+      webSocketService.broadcastProgressUpdate(batchId, {
+        status: 'STARTING',
+        progress: {
+          percentage: 0,
+          completedItems: 0,
+          totalItems: inspectionJobs.length,
+          currentStep: `Starting batch inspection (${inspectionJobs.length} items)`,
+          estimatedTimeRemaining: null
+        },
+        batchInfo: {
+          batchId,
+          totalInspections: inspectionJobs.length,
+          completedInspections: 0,
+          remainingInspections: inspectionJobs.length
+        }
+      });
+
       // 비동기로 각 검사 실행
       const executionPromises = inspectionJobs.map(job => {
-        // WebSocket 초기 상태 전송
-        if (inspectionJobs.indexOf(job) === 0) {
-          webSocketService.broadcastProgressUpdate(batchId, {
-            status: 'STARTING',
-            progress: {
-              percentage: 0,
-              completedItems: 0,
-              totalItems: inspectionJobs.length,
-              currentStep: `Starting batch inspection (${inspectionJobs.length} items)`,
-              estimatedTimeRemaining: null
-            },
-            batchInfo: {
-              batchId,
-              totalInspections: inspectionJobs.length,
-              completedInspections: 0,
-              remainingInspections: inspectionJobs.length
-            }
-          });
-        }
-
-        webSocketService.broadcastStatusChange(batchId, {
-          status: 'STARTING',
-          message: `Starting ${job.itemId} inspection`,
-          timestamp: Date.now(),
-          itemId: job.itemId,
-          inspectionId: job.inspectionId
-        });
-
-        // 구독자 이동
-        setTimeout(() => {
-          webSocketService.moveSubscribersToBatch(job.inspectionId, batchId);
-        }, 100);
 
         return this.executeItemInspectionAsync(
           customerId,
@@ -185,10 +174,12 @@ class InspectionService {
         });
       });
 
-      // 강제 구독자 이동
+      // 구독자를 배치로 이동
       setTimeout(() => {
-        webSocketService.forceMoveToBatch(batchId, inspectionJobs.map(job => job.inspectionId));
-      }, 1000);
+        inspectionJobs.forEach(job => {
+          webSocketService.moveSubscribersToBatch(job.inspectionId, batchId);
+        });
+      }, 500);
 
       // 모든 검사 완료 처리
       Promise.all(executionPromises).then(() => {
@@ -286,8 +277,7 @@ class InspectionService {
         }
       );
 
-      // 검사 진행률 동기화
-      this.syncInspectionProgress(inspectionId, inspector, steps, currentStepIndex);
+
 
       // 4. 검사 완료 처리
       currentStepIndex = steps.length - 1;
@@ -310,18 +300,18 @@ class InspectionService {
         });
 
         try {
-          console.log(`🚨 [InspectionService] Attempting emergency save for ${inspectionId}`);
-          await this.emergencySaveInspectionItemResults(itemResults, { customerId, inspectionId });
+          console.log(`🚨 [InspectionService] Attempting retry save for ${inspectionId}`);
+          await this.saveInspectionItemResults(itemResults, { customerId, inspectionId });
           saveSuccessful = true;
-          console.log(`✅ [InspectionService] Emergency save successful for ${inspectionId}`);
-        } catch (emergencyError) {
-          console.error(`❌ [InspectionService] Emergency save also failed for ${inspectionId}:`, {
-            error: emergencyError.message
+          console.log(`✅ [InspectionService] Retry save successful for ${inspectionId}`);
+        } catch (retryError) {
+          console.error(`❌ [InspectionService] Retry save also failed for ${inspectionId}:`, {
+            error: retryError.message
           });
         }
       }
 
-      // 배치 진행률 업데이트
+      // 배치 진행률 업데이트 (통합된 단일 메시지)
       const batchId = inspectionConfig.batchId || inspectionId;
       const batchProgress = this.calculateBatchProgress(batchId);
 
@@ -331,7 +321,7 @@ class InspectionService {
           percentage: batchProgress.percentage,
           completedItems: batchProgress.completedItems,
           totalItems: batchProgress.totalItems,
-          currentStep: `Completed ${inspectionConfig.targetItemId}`,
+          currentStep: `Completed ${inspectionConfig.targetItemId} (${batchProgress.completedItems}/${batchProgress.totalItems})`,
           estimatedTimeRemaining: batchProgress.estimatedTimeRemaining
         },
         completedItem: {
@@ -348,19 +338,6 @@ class InspectionService {
         }
       });
 
-      webSocketService.broadcastStatusChange(batchId, {
-        status: 'IN_PROGRESS',
-        message: `Completed ${inspectionConfig.targetItemId} (${batchProgress.completedItems}/${batchProgress.totalItems})`,
-        progress: batchProgress.percentage,
-        completedItem: {
-          inspectionId,
-          itemId: inspectionConfig.targetItemId,
-          saveSuccessful,
-          completedAt: Date.now()
-        },
-        timestamp: Date.now()
-      });
-
     } catch (error) {
       this.logger.error('Item inspection execution failed', {
         inspectionId,
@@ -371,13 +348,7 @@ class InspectionService {
         stack: error.stack
       });
 
-      await this.handlePartialInspectionFailure(
-        customerId,
-        inspectionId,
-        serviceType,
-        error,
-        inspector
-      );
+      await this.handlePartialInspectionFailure(inspectionId, inspector);
 
       inspectionStatus.fail(error.message);
 
@@ -409,23 +380,27 @@ class InspectionService {
   }
 
   /**
-   * Assume Role 수행
+   * Assume Role 수행 (검사 전용)
    * @param {string} roleArn - 역할 ARN
    * @param {string} inspectionId - 검사 ID
    * @returns {Promise<Object>} AWS 자격 증명
    */
   async assumeRole(roleArn, inspectionId) {
     try {
-      this.initializeStsClient();
+      // STSService를 사용하여 기본 검증 먼저 수행
+      if (!stsService.isValidArnFormat(roleArn)) {
+        throw new Error(`Invalid ARN format: ${roleArn}`);
+      }
 
+      // 검사 전용 AssumeRole 수행 (장기 세션 + ExternalId)
       const command = new AssumeRoleCommand({
         RoleArn: roleArn,
         RoleSessionName: `inspection-${inspectionId}`,
-        DurationSeconds: 3600,
-        ExternalId: process.env.AWS_EXTERNAL_ID
+        DurationSeconds: 3600, // 1시간 (검사용 장기 세션)
+        ExternalId: process.env.AWS_EXTERNAL_ID // 보안 강화
       });
 
-      const response = await this.stsClient.send(command);
+      const response = await stsService.client.send(command);
 
       if (!response.Credentials) {
         throw new Error('No credentials returned from assume role operation');
@@ -441,12 +416,13 @@ class InspectionService {
       };
 
     } catch (error) {
-      this.logger.error('Failed to assume role', {
+      this.logger.error('Failed to assume role for inspection', {
         roleArn,
         inspectionId,
         error: error.message
       });
 
+      // STSService와 동일한 에러 처리 로직 재사용
       if (error.name === 'AccessDenied') {
         throw new Error(`Access denied when assuming role ${roleArn}. Please check role permissions and trust policy.`);
       } else if (error.name === 'InvalidParameterValue') {
@@ -460,10 +436,9 @@ class InspectionService {
   /**
    * 검사 상태 조회
    * @param {string} inspectionId - 검사 ID
-   * @param {string} customerId - 고객 ID
    * @returns {Object} 검사 상태 정보
    */
-  getInspectionStatus(inspectionId, customerId) {
+  getInspectionStatus(inspectionId) {
     const inspectionStatus = this.activeInspections.get(inspectionId);
 
     if (!inspectionStatus) {
@@ -535,16 +510,7 @@ class InspectionService {
 
   // ========== 헬퍼 메서드들 ==========
 
-  /**
-   * STS 클라이언트 초기화
-   */
-  initializeStsClient() {
-    if (!this.stsClient) {
-      this.stsClient = new STSClient({
-        region: process.env.AWS_REGION || 'us-east-1'
-      });
-    }
-  }
+
 
   /**
    * 배치 진행률 계산
@@ -631,13 +597,7 @@ class InspectionService {
     webSocketService.broadcastInspectionComplete(batchId, completionData);
   }
 
-  /**
-   * 항목명 가져오기 (더 이상 사용하지 않음 - 프론트엔드에서 매핑)
-   */
-  getItemName(serviceType, itemId) {
-    // 프론트엔드에서 매핑하므로 itemId 그대로 반환
-    return itemId;
-  }
+
 
   /**
    * 검사 진행률 업데이트
@@ -674,38 +634,9 @@ class InspectionService {
     });
   }
 
-  /**
-   * Inspector 진행률과 동기화
-   */
-  syncInspectionProgress(inspectionId, inspector, steps, currentStepIndex) {
-    if (inspector && inspector.getProgress) {
-      const inspectorProgress = inspector.getProgress();
-      this.updateInspectionProgress(inspectionId, steps, currentStepIndex, {
-        stepProgress: inspectorProgress.percentage
-      });
-    }
-  }
 
-  /**
-   * 검사 시작 상태 저장
-   */
-  async saveInspectionStart(customerId, inspectionId, serviceType, assumeRoleArn, metadata) {
-    try {
-      // 검사 시작 로그만 기록 (실제 구현에서는 필요에 따라 DB 저장)
-      this.logger.info('Inspection started', {
-        customerId,
-        inspectionId,
-        serviceType,
-        assumeRoleArn,
-        metadata
-      });
-    } catch (error) {
-      this.logger.error('Failed to save inspection start', {
-        inspectionId,
-        error: error.message
-      });
-    }
-  }
+
+
 
   /**
    * 검사 항목 결과 저장 (단순화)
@@ -713,7 +644,7 @@ class InspectionService {
   async saveInspectionItemResults(itemResults, metadata) {
     try {
       const inspectionItemService = require('./inspectionItemService');
-      
+
       if (itemResults && itemResults.length > 0) {
         for (const itemResult of itemResults) {
           await inspectionItemService.saveItemResult(metadata.customerId, metadata.inspectionId, itemResult);
@@ -733,24 +664,19 @@ class InspectionService {
     }
   }
 
-  /**
-   * 응급 저장 (동일한 로직)
-   */
-  async emergencySaveInspectionItemResults(itemResults, metadata) {
-    return this.saveInspectionItemResults(itemResults, metadata);
-  }
+
 
   /**
    * 부분적 검사 실패 처리
    */
-  async handlePartialInspectionFailure(customerId, inspectionId, serviceType, error, inspector) {
+  async handlePartialInspectionFailure(inspectionId, inspector) {
     try {
       if (inspector && inspector.getPartialResults) {
         const partialResults = inspector.getPartialResults();
         if (partialResults && partialResults.length > 0) {
-          await this.emergencySaveInspectionItemResults(partialResults, {
+          await this.saveInspectionItemResults(partialResults, {
             inspectionId,
-            customerId
+            customerId: 'partial-save' // 부분 저장용 임시 ID
           });
         }
       }
