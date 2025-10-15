@@ -12,6 +12,14 @@ const { ApiResponse } = require('../models/ApiResponse');
  * 검사 시작
  * POST /api/inspections/start
  * Requirements: 1.1 - 승인된 고객이 AWS 서비스 검사를 요청
+ * 
+ * 역할: AWS 리소스 검사를 시작하는 핵심 엔드포인트
+ * - 요청 데이터 검증 (serviceType, assumeRoleArn)
+ * - inspectionService를 통한 검사 실행
+ * - 배치 방식과 단일 검사 방식 모두 지원
+ * - WebSocket 구독 정보와 함께 응답 반환
+ * 
+ * 사용처: ServiceInspectionSelector에서 검사 시작 버튼 클릭 시
  */
 const startInspection = async (req, res) => {
     try {
@@ -84,108 +92,31 @@ const startInspection = async (req, res) => {
     }
 };
 
-/**
- * 검사 이력 조회 (필터링 제거됨)
- * GET /api/inspections/history
- * Requirements: 3.2 - 고객이 검사 이력을 요청하여 날짜순으로 정렬된 검사 이력을 표시
- */
-const getInspectionHistory = async (req, res) => {
-    try {
-        const customerId = req.user.userId;
-        const { serviceType } = req.query;
-
-        console.log(`🔍 [InspectionController] Simple inspection history request - Service: ${serviceType || 'ALL'}`);
-
-        // 검사 이력 조회 (단일 테이블 구조)
-        const result = await historyService.getInspectionHistory(customerId, {
-            serviceType,
-            aggregated: true
-        });
-
-        if (!result.success) {
-            return res.status(500).json(ApiResponse.error({
-                code: result.error?.code || 'HISTORY_RETRIEVAL_FAILED',
-                message: result.error?.message || 'Failed to retrieve inspection history',
-                details: result.error?.details || 'An error occurred while retrieving inspection history'
-            }));
-        }
-
-        res.status(200).json(ApiResponse.success({
-            message: 'Inspection history retrieved successfully',
-            inspections: result.data.inspections,
-            hasMore: result.data.hasMore,
-            totalCount: result.data.count
-        }));
-
-    } catch (error) {
-        console.error('Get inspection history error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while retrieving inspection history'
-        }));
-    }
-};
 
 
 
-/**
- * 서비스별 검사 항목 상태 조회
- * GET /api/inspections/services/:serviceType/items
- */
-const getServiceItemStatus = async (req, res) => {
-    try {
-        const { serviceType } = req.params;
-        const customerId = req.user.userId;
 
-        if (!serviceType) {
-            return res.status(400).json(ApiResponse.error({
-                code: 'MISSING_SERVICE_TYPE',
-                message: 'Service type is required',
-                details: 'Please specify the service type (EC2, RDS, S3, IAM)'
-            }));
-        }
 
-        const result = await historyService.getInspectionHistory(customerId, {
-            serviceType,
-            historyMode: 'latest'
-        });
-
-        if (!result.success) {
-            return res.status(500).json(ApiResponse.error({
-                code: 'ITEM_STATUS_RETRIEVAL_FAILED',
-                message: 'Failed to retrieve item status',
-                details: result.error
-            }));
-        }
-
-        res.status(200).json(ApiResponse.success({
-            message: 'Service item status retrieved successfully',
-            serviceType,
-            items: result.data.services[serviceType] || {}
-        }));
-
-    } catch (error) {
-        console.error('Get service item status error:', error);
-        res.status(500).json(ApiResponse.error({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
-            details: 'An unexpected error occurred while retrieving service item status'
-        }));
-    }
-};
 
 
 
 /**
  * 검사 항목 상태 조회 (서비스별 필터링 지원)
  * GET /api/inspections/items/status?serviceType=EC2
+ * 
+ * 역할: 모든 서비스 또는 특정 서비스의 검사 항목 상태를 조회
+ * - 쿼리 파라미터로 서비스 필터링 (선택사항)
+ * - 캐시 무효화 헤더 설정 (실시간 데이터)
+ * - Trusted Advisor 스타일 대시보드용
+ * - 각 검사 항목의 최신 상태와 findings 정보 제공
+ * 
+ * 사용처: ServiceInspectionSelector에서 서비스 선택 시 검사 항목 상태 표시
  */
 const getAllItemStatus = async (req, res) => {
     try {
         const customerId = req.user.userId;
         const { serviceType } = req.query;
-        
+
         console.log(`🔍 [InspectionController] Getting item status for customer ${customerId}, service: ${serviceType || 'ALL'}`);
 
         // 단일 테이블 구조에서 최신 검사 결과 조회
@@ -237,6 +168,14 @@ const getAllItemStatus = async (req, res) => {
 /**
  * 항목별 검사 이력 조회 (페이지네이션 지원)
  * GET /api/inspections/items/history
+ * 
+ * 역할: 검사 항목별 상세 이력을 페이지네이션으로 조회
+ * - 페이지네이션 지원 (lastEvaluatedKey)
+ * - historyMode 설정 가능 ('history' 또는 'latest')
+ * - 대용량 데이터 처리 최적화
+ * - 시간순 정렬된 상세 검사 기록 제공
+ * 
+ * 사용처: 상세 이력 화면, 트렌드 분석, 검사 항목별 변화 추적
  */
 const getItemInspectionHistory = async (req, res) => {
     try {
@@ -287,8 +226,6 @@ const getItemInspectionHistory = async (req, res) => {
 
 module.exports = {
     startInspection,
-    getInspectionHistory,
-    getServiceItemStatus,
     getAllItemStatus,
     getItemInspectionHistory
 };

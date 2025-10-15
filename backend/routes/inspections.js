@@ -23,14 +23,7 @@ router.use(requireApprovedUser);
  */
 router.post('/start', validateInspectionStart, inspectionController.startInspection);
 
-/**
- * GET /api/inspections/history
- * 검사 이력 조회
- * Requirements: 3.2 - 고객이 검사 이력을 요청하여 날짜순으로 정렬된 검사 이력을 표시
- * 
- * Note: 구체적인 경로들은 /:id 보다 먼저 정의해야 함 (라우트 우선순위)
- */
-router.get('/history', inspectionController.getInspectionHistory);
+
 
 /**
  * GET /api/inspections/items/history
@@ -46,12 +39,7 @@ router.get('/items/history', inspectionController.getItemInspectionHistory);
  */
 router.get('/items/status', inspectionController.getAllItemStatus);
 
-/**
- * GET /api/inspections/services/:serviceType/items
- * 특정 서비스의 검사 항목 상태 조회
- * Trusted Advisor 스타일 - 서비스별 검사 항목 상태
- */
-router.get('/services/:serviceType/items', inspectionController.getServiceItemStatus);
+
 
 
 
