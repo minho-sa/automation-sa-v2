@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import swWebSocketClient from '../services/serviceWorkerWebSocket';
+import swWebSocketClient from '../../../services/serviceWorkerWebSocket';
 import './ServiceWorkerProgressIndicator.css';
 
 const ServiceWorkerProgressIndicator = () => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../context';
+import { useAuth } from '../../context';
 import './RegisterForm.css';
 
 const RegisterForm = ({ onSuccess }) => {

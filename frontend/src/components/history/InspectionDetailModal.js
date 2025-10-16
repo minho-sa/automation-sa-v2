@@ -4,8 +4,8 @@
  */
 
 import React from 'react';
-import EnhancedProgressMonitor from './EnhancedProgressMonitor';
-import { useInspection } from '../context/InspectionContext';
+import EnhancedProgressMonitor from '../inspection/progress/EnhancedProgressMonitor';
+import { useInspection } from '../../context/InspectionContext';
 import './InspectionDetailModal.css';
 
 const InspectionDetailModal = ({ 

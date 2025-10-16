@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { inspectionItems, severityColors, severityIcons } from '../data/inspectionItems';
-import { getItemInfo } from '../utils/itemMappings';
+import { inspectionItems, severityColors, severityIcons } from '../../data/inspectionItems';
+import { getItemInfo } from '../../utils/itemMappings';
 import './InspectionResultsView.css';
 
 const InspectionResultsView = ({ inspectionData, onBackToSelection }) => {

@@ -1,13 +1,19 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context';
 import { InspectionProvider } from './context/InspectionContext';
-import { Navigation, ProtectedRoute, PublicRoute, UserList, ResourceInspectionTab } from './components';
-import InspectionHistory from './components/InspectionHistory';
-import WebSocketStatus from './components/WebSocketStatus';
-import SmartInspectionUI from './components/SmartInspectionUI';
-import GlobalProgressIndicator from './components/GlobalProgressIndicator';
-import BottomProgressIndicator from './components/BottomProgressIndicator';
-import ServiceWorkerProgressIndicator from './components/ServiceWorkerProgressIndicator';
+import { 
+  Navigation, 
+  ProtectedRoute, 
+  PublicRoute,
+  UserList, 
+  ResourceInspectionTab,
+  InspectionHistory,
+  WebSocketStatus,
+  SmartInspectionUI,
+  GlobalProgressIndicator,
+  BottomProgressIndicator,
+  ServiceWorkerProgressIndicator
+} from './components';
 import { RegisterPage, LoginPage, UserDashboardPage } from './pages';
 import './App.css';
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { inspectionService } from '../services';
+import { inspectionService } from '../../services';
 import { 
   getItemName, 
   getItemInfo, 
@@ -9,7 +9,7 @@ import {
   determineInspectionStatus,
   getActualStatus,
   calculateStatusStats
-} from '../utils/itemMappings';
+} from '../../utils/itemMappings';
 import './InspectionHistory.css';
 
 const InspectionHistory = () => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context';
-import { userService } from '../services';
+import { useAuth } from '../../context';
+import { userService } from '../../services';
 import './UserDashboard.css';
 
 const UserDashboard = () => {

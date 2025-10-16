@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { inspectionService } from '../services';
+import { inspectionService } from '../../services';
 import ServiceInspectionSelector from './ServiceInspectionSelector';
 import InspectionResultsView from './InspectionResultsView';
-import EnhancedProgressMonitor from './EnhancedProgressMonitor';
-import webSocketService from '../services/websocketService';
-import webSocketDebugger from '../utils/websocketDebugger';
-import { useInspectionStarter } from '../hooks/useInspectionStarter';
-import { useInspection } from '../context/InspectionContext';
+import EnhancedProgressMonitor from './progress/EnhancedProgressMonitor';
+import webSocketService from '../../services/websocketService';
+import webSocketDebugger from '../../utils/websocketDebugger';
+import { useInspectionStarter } from '../../hooks/useInspectionStarter';
+import { useInspection } from '../../context/InspectionContext';
 import './ResourceInspectionTab.css';
 
 // 뷰 상태 정의

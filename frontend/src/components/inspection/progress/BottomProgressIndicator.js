@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useInspection } from '../context/InspectionContext';
+import { useInspection } from '../../../context/InspectionContext';
 import './BottomProgressIndicator.css';
 
 const BottomProgressIndicator = () => {

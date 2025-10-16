@@ -1,22 +1,11 @@
-export { default as Navigation } from './Navigation';
-export { ProtectedRoute, PublicRoute } from './ProtectedRoute';
-export { default as RegisterForm } from './RegisterForm';
-export { default as LoginForm } from './LoginForm';
-export { default as UserDashboard } from './UserDashboard';
-export { default as UserList } from './UserList';
-export { default as ResourceInspectionTab } from './ResourceInspectionTab';
+// Re-export all components from organized folders
+export * from './auth';
+export * from './dashboard';
+export * from './inspection';
+export * from './history';
+export * from './admin';
+export * from './common';
 
-export { default as ProgressIndicator } from './ProgressIndicator';
-export { default as EnhancedProgressMonitor } from './EnhancedProgressMonitor';
-export { default as WebSocketStatus } from './WebSocketStatus';
-export { default as BackgroundInspectionMonitor } from './BackgroundInspectionMonitor';
-export { default as BackgroundInspectionManager } from './BackgroundInspectionManager';
-export { default as InspectionWithBackground } from './InspectionWithBackground';
-export { default as InspectionStatusBar } from './InspectionStatusBar';
-export { default as InspectionDetailModal } from './InspectionDetailModal';
-export { default as MinimalProgressIndicator } from './MinimalProgressIndicator';
-export { default as InspectionToast } from './InspectionToast';
-export { default as SmartInspectionUI } from './SmartInspectionUI';
+// Hooks (keeping these here for now)
 export { default as useInspectionManager } from '../hooks/useInspectionManager';
-export { default as InspectionStateRestorer } from './InspectionStateRestorer';
 export { default as useInspectionStarter } from '../hooks/useInspectionStarter';

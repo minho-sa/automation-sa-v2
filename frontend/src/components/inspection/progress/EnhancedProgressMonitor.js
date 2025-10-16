@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import ProgressIndicator from './ProgressIndicator';
-import useInspectionProgress from '../hooks/useInspectionProgress';
+import useInspectionProgress from '../../../hooks/useInspectionProgress';
 import './EnhancedProgressMonitor.css';
 
 const EnhancedProgressMonitor = ({

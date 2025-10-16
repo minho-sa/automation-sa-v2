@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useInspection } from '../context/InspectionContext';
-import webSocketService from '../services/websocketService';
-import MinimalProgressIndicator from './MinimalProgressIndicator';
-import InspectionDetailModal from './InspectionDetailModal';
+import { useInspection } from '../../context/InspectionContext';
+import webSocketService from '../../services/websocketService';
+import MinimalProgressIndicator from './progress/MinimalProgressIndicator';
+import InspectionDetailModal from '../history/InspectionDetailModal';
 import InspectionStateRestorer from './InspectionStateRestorer';
 
 const SmartInspectionUI = () => {

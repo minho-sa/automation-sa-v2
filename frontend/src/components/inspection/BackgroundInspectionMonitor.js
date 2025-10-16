@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import useInspectionProgress from '../hooks/useInspectionProgress';
+import useInspectionProgress from '../../hooks/useInspectionProgress';
 import './BackgroundInspectionMonitor.css';
 
 const BackgroundInspectionMonitor = ({

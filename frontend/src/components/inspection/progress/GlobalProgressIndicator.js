@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useInspection } from '../context/InspectionContext';
+import { useInspection } from '../../../context/InspectionContext';
 import './GlobalProgressIndicator.css';
 
 const GlobalProgressIndicator = () => {

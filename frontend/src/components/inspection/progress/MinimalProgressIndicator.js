@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { useInspection } from '../context/InspectionContext';
+import { useInspection } from '../../../context/InspectionContext';
 import './MinimalProgressIndicator.css';
 
 const MinimalProgressIndicator = () => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { inspectionItems, severityColors, severityIcons } from '../data/inspectionItems';
-import { getItemSeverity } from '../utils/itemMappings';
-import { inspectionService } from '../services';
+import { inspectionItems, severityColors, severityIcons } from '../../data/inspectionItems';
+import { getItemSeverity } from '../../utils/itemMappings';
+import { inspectionService } from '../../services';
 import './ServiceInspectionSelector.css';
 
 const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {

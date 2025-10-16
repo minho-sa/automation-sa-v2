@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { useInspection } from '../context/InspectionContext';
+import { useInspection } from '../../context/InspectionContext';
 import './InspectionStatusBar.css';
 
 const InspectionStatusBar = ({ onViewInspection }) => {

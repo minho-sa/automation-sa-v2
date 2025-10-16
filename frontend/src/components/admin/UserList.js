@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { adminService } from '../services';
+import { adminService } from '../../services';
 import './UserList.css';
 
 const UserList = () => {

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import webSocketService from '../services/websocketService';
+import webSocketService from '../../services/websocketService';
 
 const WebSocketStatus = () => {
   const [status, setStatus] = useState({

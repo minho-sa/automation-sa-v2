@@ -4,11 +4,11 @@
  */
 
 import React, { useState } from 'react';
-import { useInspection } from '../context/InspectionContext';
-import EnhancedProgressMonitor from './EnhancedProgressMonitor';
+import { useInspection } from '../../context/InspectionContext';
+import EnhancedProgressMonitor from './progress/EnhancedProgressMonitor';
 import BackgroundInspectionManager from './BackgroundInspectionManager';
 import InspectionStatusBar from './InspectionStatusBar';
-import InspectionDetailModal from './InspectionDetailModal';
+import InspectionDetailModal from '../history/InspectionDetailModal';
 
 const InspectionWithBackground = ({ 
   inspectionData, 

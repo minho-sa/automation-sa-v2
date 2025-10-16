@@ -1,5 +1,2 @@
-// Common UI Components
-export { default as Button } from './Button';
-export { default as Card } from './Card';
-export { default as Input } from './Input';
-export { default as Badge } from './Badge';
+// Common Components
+export { default as Navigation } from './Navigation';

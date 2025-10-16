@@ -4,8 +4,8 @@
  */
 
 import { useEffect } from 'react';
-import { useInspection } from '../context/InspectionContext';
-import inspectionManager from '../services/inspectionManager';
+import { useInspection } from '../../context/InspectionContext';
+import inspectionManager from '../../services/inspectionManager';
 
 const InspectionStateRestorer = () => {
   const { activeInspections, startInspection } = useInspection();
