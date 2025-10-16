@@ -46,8 +46,9 @@
 **프론트엔드 동작:**
 ```javascript
 // components/auth/RegisterForm.js - handleSubmit
+const { register } = useAuth(); // AuthContext 훅 사용
 const handleSubmit = async (e) => {
-  const response = await authService.register(formData);
+  const result = await register(registrationData);
 }
 ```
 
@@ -334,8 +335,13 @@ const handleStartInspection = () => {
 }
 
 // components/inspection/ResourceInspectionTab.js - handleStartInspection
+const { startInspection } = useInspectionStarter(); // 커스텀 훅 사용
 const handleStartInspection = async (inspectionRequest) => {
-  const result = await startInspection(serviceType, selectedItems, assumeRoleArn);
+  const result = await startInspection(
+    inspectionRequest.serviceType,
+    inspectionRequest.inspectionConfig?.selectedItems || [],
+    inspectionRequest.assumeRoleArn
+  );
 }
 ```
 
