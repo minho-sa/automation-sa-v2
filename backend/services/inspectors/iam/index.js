@@ -156,9 +156,18 @@ class IAMInspector extends BaseInspector {
           break;
 
         default:
-          // 알 수 없는 항목인 경우 오류 처리
-          await this._inspectUnknownItem(results, targetItem);
-          break;
+          // 알 수 없는 검사 항목에 대한 Finding 생성
+          const finding = new InspectionFinding({
+            resourceId: 'SYSTEM',
+            resourceType: 'InspectionError',
+            issue: `알 수 없는 검사 항목: ${targetItem}`,
+            recommendation: '검사에 실패했습니다. 관리자에게 문의하세요.'
+          });
+          this.addFinding(finding);
+          
+          const error = new Error(`Unknown inspection item: ${targetItem}`);
+          this.recordError(error, { targetItem });
+          throw error;
       }
 
       this.updateProgress('분석 완료 중', 95);
@@ -396,17 +405,7 @@ class IAMInspector extends BaseInspector {
 
 
 
-  async _inspectUnknownItem(results, targetItem) {
-    const finding = new InspectionFinding({
-      resourceId: `unknown-item-${targetItem}`,
-      resourceType: 'IAMGeneral',
-      issue: `알 수 없는 검사 항목 '${targetItem}'이 요청되었습니다`,
-      recommendation: '지원되는 검사 항목 중에서 선택하세요. 지원되는 항목: root-access-key, mfa-enabled, unused-credentials, overprivileged-user-policies, overprivileged-role-policies, inline-policies, unused-policies'
-    });
 
-    this.addFinding(finding);
-    results.findings = this.findings;
-  }
 
 
 

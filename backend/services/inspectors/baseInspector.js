@@ -107,7 +107,11 @@ class BaseInspector {
         stack: error.stack
       });
 
-      // 에러 발생 시 빈 결과 반환
+      // 에러 발생 시에도 findings가 있으면 반환
+      if (this.findings.length > 0) {
+        return this.buildItemResults(inspectionConfig);
+      }
+      
       return [];
     }
   }

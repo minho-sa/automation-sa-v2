@@ -5,6 +5,7 @@
  */
 
 const BaseInspector = require('../baseInspector');
+const InspectionFinding = require('../../../models/InspectionFinding');
 const { EC2Client } = require('@aws-sdk/client-ec2');
 
 // 검사 항목별 모듈 import
@@ -118,11 +119,11 @@ class EC2Inspector extends BaseInspector {
           await this._inspectUnusedElasticIp(results);
           break;
 
-        case 'old_snapshots':
+        case 'old-snapshots':
           await this._inspectOldSnapshots(results);
           break;
 
-        case 'ebs_volume_version':
+        case 'ebs-volume-version':
           await this._inspectEBSVolumeVersion(results);
           break;
 
@@ -135,8 +136,18 @@ class EC2Inspector extends BaseInspector {
           break;
 
         default:
-          // 알 수 없는 항목인 경우 전체 검사로 폴백
-          return this.performInspection(awsCredentials, inspectionConfig);
+          // 알 수 없는 검사 항목에 대한 Finding 생성
+          const finding = new InspectionFinding({
+            resourceId: 'SYSTEM',
+            resourceType: 'InspectionError',
+            issue: `알 수 없는 검사 항목: ${targetItem}`,
+            recommendation: '검사에 실패했습니다. 관리자에게 문의하세요.'
+          });
+          this.addFinding(finding);
+          
+          const error = new Error(`Unknown inspection item: ${targetItem}`);
+          this.recordError(error, { targetItem });
+          throw error;
       }
 
       this.updateProgress('분석 완료 중', 95);

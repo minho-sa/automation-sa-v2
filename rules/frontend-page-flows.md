@@ -66,6 +66,7 @@ const handleSubmit = async (e) => {
    - authController.register 함수 호출
    ↓
 4. 컨트롤러: authController.register()
+   - User.helpers.validateRegistrationData() → 모델 헬퍼로 입력 검증
    - dynamoService.getUserByUsername(username) → 중복 확인
    - cognitoService.createUser(username, password) → AWS Cognito 계정 생성
    - dynamoService.createUser(userData) → 메타데이터 저장
@@ -104,6 +105,7 @@ const handleSubmit = async (e) => {
    - authController.login 함수 호출
    ↓
 4. 컨트롤러: authController.login()
+   - User.helpers.validateLoginData() → 모델 헬퍼로 입력 검증
    - cognitoService.authenticateUser(username, password) → AWS Cognito 인증
    - dynamoService.getUserByUsername(username) → 사용자 메타데이터 조회
    - generateToken(tokenPayload) → JWT 토큰 생성
@@ -255,7 +257,7 @@ const handlePasswordSubmit = async (e) => {
    - 라우트 핸들러 함수 직접 실행
    ↓
 4. 라우트 핸들러: users.js 내부 `async (req, res) => {}` 함수
-   - 입력 검증 (currentPassword, newPassword, confirmPassword)
+   - User.helpers.validatePasswordChange() → 모델 헬퍼로 입력 검증
    - cognitoService.authenticateUser(username, currentPassword) → 현재 비밀번호 검증
    - cognitoService.changePassword(username, newPassword) → 새 비밀번호 설정
    - dynamoService.updateUserTimestamp(userId) → 타임스탬프 업데이트
@@ -358,7 +360,7 @@ const handleStartInspection = async (inspectionRequest) => {
    ↓
 3. 컨트롤러: inspectionController.startInspection()
    - req.user.userId 추출 (customerId)
-   - 입력 검증 (serviceType, assumeRoleArn)
+   - ApiResponse 모델을 사용한 응답 형식 통일
    - inspectionService.startInspection(customerId, serviceType, assumeRoleArn, inspectionConfig) 호출
    ↓
 4. 서비스: inspectionService.startInspection()
@@ -368,7 +370,7 @@ const handleStartInspection = async (inspectionRequest) => {
    - this.executeItemInspectionAsync() 비동기 실행 (각 항목별)
    ↓
 5. 개별 검사 실행: inspectionService.executeItemInspectionAsync()
-   - this.assumeRole(roleArn, inspectionId) → AssumeRoleCommand 실행
+   - stsService.assumeRoleForInspection(roleArn, inspectionId) → STS 서비스로 역할 위임
    - inspectorRegistry.getInspector(serviceType) → 서비스별 Inspector 획득
    - inspector.executeItemInspection() → 실제 AWS 리소스 검사
    - this.saveInspectionItemResults() → inspectionItemService.saveItemResult() 호출
@@ -378,7 +380,10 @@ const handleStartInspection = async (inspectionRequest) => {
    - 배치 진행률 계산 및 전송
    ↓
 7. 모델들:
-   - AWS STS: AssumeRoleCommand로 임시 자격 증명 획득
+   - User 모델: 사용자 데이터 검증 및 헬퍼 함수 제공
+   - ApiResponse 모델: 통일된 응답 형식 제공
+   - InspectionItemResult 모델: 검사 결과 데이터 구조 정의
+   - AWS STS: stsService를 통한 임시 자격 증명 획득
    - AWS 서비스들: EC2, S3, RDS 등 실제 리소스 검사
    - DynamoDB: InspectionItemResults 테이블에 검사 결과 저장
 ```
@@ -567,7 +572,8 @@ const handleStatusChange = async (userId, newStatus) => {
    ↓
 4. 라우트 핸들러: admin.js 내부 `async (req, res) => {}` 함수
    - req.params.userId와 req.body.status 추출
-   - 입력 검증 (userId 존재, status가 'approved' 또는 'rejected')
+   - User.helpers.validateUserId() → 모델 헬퍼로 userId 검증
+   - User.helpers.validateStatus() → 모델 헬퍼로 status 검증
    - dynamoService.updateUserStatus(userId, status) 호출
    ↓
 5. 서비스: dynamoService.updateUserStatus()
@@ -604,7 +610,7 @@ const handleArnValidation = async (userId) => {
    - 라우트 핸들러 함수 직접 실행
    ↓
 4. 라우트 핸들러: admin.js 내부 `async (req, res) => {}` 함수
-   - req.params.userId 추출 및 검증
+   - User.helpers.validateUserId() → 모델 헬퍼로 userId 검증
    - dynamoService.getUserById(userId) → 사용자 정보 및 roleArn 조회
    - stsService.validateRoleArn(roleArn, sessionName) → AWS STS로 ARN 검증
    - dynamoService.updateArnValidation(userId, isValid, error) → 검증 결과 저장
@@ -679,10 +685,19 @@ cognitoService.js (backend/services/cognitoService.js)
 - createUser(), authenticateUser(), changePassword()
 
 inspectionService.js (backend/services/inspectionService.js)
-- startInspection(), executeItemInspectionAsync(), assumeRole(), saveInspectionItemResults()
+- startInspection(), executeItemInspectionAsync(), saveInspectionItemResults()
 
 historyService.js (backend/services/historyService.js)
 - getInspectionHistory()
+
+stsService.js (backend/services/stsService.js)
+- assumeRoleForInspection(), validateRoleArn(), isValidArnFormat()
+
+inspectionItemService.js (backend/services/inspectionItemService.js)
+- saveItemResult()
+
+websocketService.js (backend/services/websocketService.js)
+- broadcastProgressUpdate(), broadcastBatchCompletion()
 ```
 
 ### 8.5 백엔드 라우트 핸들러

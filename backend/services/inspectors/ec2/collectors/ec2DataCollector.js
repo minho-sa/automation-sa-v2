@@ -133,36 +133,46 @@ class EC2DataCollector {
 
 
   /**
-   * 보안 그룹 사용 현황 분석
+   * 보안 그룹 사용 현황 분석 (필요시에만 실행)
    */
-  analyzeSecurityGroupUsage(instances, securityGroups) {
+  analyzeSecurityGroupUsage(instances, securityGroups, analysisType = 'full') {
     const usedSecurityGroupIds = new Set();
-    const securityGroupUsage = new Map();
-
+    
     // 인스턴스에서 사용되는 보안 그룹 수집
     instances.forEach(instance => {
       if (instance.SecurityGroups) {
         instance.SecurityGroups.forEach(sg => {
           usedSecurityGroupIds.add(sg.GroupId);
-          
-          if (!securityGroupUsage.has(sg.GroupId)) {
-            securityGroupUsage.set(sg.GroupId, []);
-          }
-          securityGroupUsage.get(sg.GroupId).push(instance.InstanceId);
         });
       }
     });
 
-    // 사용되지 않는 보안 그룹 찾기
-    const unusedSecurityGroups = securityGroups.filter(sg => 
-      !usedSecurityGroupIds.has(sg.GroupId) && sg.GroupName !== 'default'
-    );
+    const result = { usedSecurityGroupIds };
+    
+    // 전체 분석이 필요한 경우에만 추가 계산
+    if (analysisType === 'full') {
+      const securityGroupUsage = new Map();
+      
+      instances.forEach(instance => {
+        if (instance.SecurityGroups) {
+          instance.SecurityGroups.forEach(sg => {
+            if (!securityGroupUsage.has(sg.GroupId)) {
+              securityGroupUsage.set(sg.GroupId, []);
+            }
+            securityGroupUsage.get(sg.GroupId).push(instance.InstanceId);
+          });
+        }
+      });
+      
+      const unusedSecurityGroups = securityGroups.filter(sg => 
+        !usedSecurityGroupIds.has(sg.GroupId) && sg.GroupName !== 'default'
+      );
+      
+      result.securityGroupUsage = securityGroupUsage;
+      result.unusedSecurityGroups = unusedSecurityGroups;
+    }
 
-    return {
-      usedSecurityGroupIds,
-      securityGroupUsage,
-      unusedSecurityGroups
-    };
+    return result;
   }
 }
 

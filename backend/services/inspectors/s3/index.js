@@ -138,8 +138,18 @@ class S3Inspector extends BaseInspector {
           break;
 
         default:
-          // 알 수 없는 항목인 경우 전체 검사로 폴백
-          return this.performInspection(awsCredentials, inspectionConfig);
+          // 알 수 없는 검사 항목에 대한 Finding 생성
+          const finding = new InspectionFinding({
+            resourceId: 'SYSTEM',
+            resourceType: 'InspectionError',
+            issue: `알 수 없는 검사 항목: ${targetItem}`,
+            recommendation: '검사에 실패했습니다. 관리자에게 문의하세요.'
+          });
+          this.addFinding(finding);
+          
+          const error = new Error(`Unknown inspection item: ${targetItem}`);
+          this.recordError(error, { targetItem });
+          throw error;
       }
 
       this.updateProgress('분석 완료 중', 95);
@@ -225,12 +235,12 @@ class S3Inspector extends BaseInspector {
     this.findings = [];
 
     this.updateProgress('S3 버킷 조회 중', 20);
-    const buckets = await this.dataCollector.collectAllData();
-    results.buckets = buckets.buckets;
-    this.incrementResourceCount(buckets.buckets.length);
+    const buckets = await this.dataCollector.getBuckets();
+    results.buckets = buckets;
+    this.incrementResourceCount(buckets.length);
 
     this.updateProgress('버킷 정책 분석 중', 70);
-    await this.checkers.bucketPolicy.runAllChecks(buckets.buckets);
+    await this.checkers.bucketPolicy.runAllChecks(buckets);
 
     results.findings = this.findings;
   }
@@ -239,12 +249,12 @@ class S3Inspector extends BaseInspector {
     this.findings = [];
 
     this.updateProgress('S3 버킷 조회 중', 20);
-    const buckets = await this.dataCollector.collectAllData();
-    results.buckets = buckets.buckets;
-    this.incrementResourceCount(buckets.buckets.length);
+    const buckets = await this.dataCollector.getBuckets();
+    results.buckets = buckets;
+    this.incrementResourceCount(buckets.length);
 
     this.updateProgress('버킷 암호화 분석 중', 70);
-    await this.checkers.bucketEncryption.runAllChecks(buckets.buckets);
+    await this.checkers.bucketEncryption.runAllChecks(buckets);
 
     results.findings = this.findings;
   }
@@ -253,12 +263,12 @@ class S3Inspector extends BaseInspector {
     this.findings = [];
 
     this.updateProgress('S3 버킷 조회 중', 20);
-    const buckets = await this.dataCollector.collectAllData();
-    results.buckets = buckets.buckets;
-    this.incrementResourceCount(buckets.buckets.length);
+    const buckets = await this.dataCollector.getBuckets();
+    results.buckets = buckets;
+    this.incrementResourceCount(buckets.length);
 
     this.updateProgress('버전 관리 분석 중', 70);
-    await this.checkers.bucketVersioning.runAllChecks(buckets.buckets);
+    await this.checkers.bucketVersioning.runAllChecks(buckets);
 
     results.findings = this.findings;
   }
@@ -267,12 +277,12 @@ class S3Inspector extends BaseInspector {
     this.findings = [];
 
     this.updateProgress('S3 버킷 조회 중', 20);
-    const buckets = await this.dataCollector.collectAllData();
-    results.buckets = buckets.buckets;
-    this.incrementResourceCount(buckets.buckets.length);
+    const buckets = await this.dataCollector.getBuckets();
+    results.buckets = buckets;
+    this.incrementResourceCount(buckets.length);
 
     this.updateProgress('액세스 로깅 분석 중', 70);
-    await this.checkers.bucketLogging.runAllChecks(buckets.buckets);
+    await this.checkers.bucketLogging.runAllChecks(buckets);
 
     results.findings = this.findings;
   }
@@ -281,12 +291,12 @@ class S3Inspector extends BaseInspector {
     this.findings = [];
 
     this.updateProgress('S3 버킷 조회 중', 20);
-    const buckets = await this.dataCollector.collectAllData();
-    results.buckets = buckets.buckets;
-    this.incrementResourceCount(buckets.buckets.length);
+    const buckets = await this.dataCollector.getBuckets();
+    results.buckets = buckets;
+    this.incrementResourceCount(buckets.length);
 
     this.updateProgress('퍼블릭 액세스 분석 중', 70);
-    await this.checkers.bucketPublicAccess.runAllChecks(buckets.buckets);
+    await this.checkers.bucketPublicAccess.runAllChecks(buckets);
 
     results.findings = this.findings;
   }
@@ -295,12 +305,12 @@ class S3Inspector extends BaseInspector {
     this.findings = [];
 
     this.updateProgress('S3 버킷 조회 중', 20);
-    const buckets = await this.dataCollector.collectAllData();
-    results.buckets = buckets.buckets;
-    this.incrementResourceCount(buckets.buckets.length);
+    const buckets = await this.dataCollector.getBuckets();
+    results.buckets = buckets;
+    this.incrementResourceCount(buckets.length);
 
     this.updateProgress('라이프사이클 정책 분석 중', 70);
-    await this.checkers.bucketLifecycle.runAllChecks(buckets.buckets);
+    await this.checkers.bucketLifecycle.runAllChecks(buckets);
 
     results.findings = this.findings;
   }
@@ -309,12 +319,12 @@ class S3Inspector extends BaseInspector {
     this.findings = [];
 
     this.updateProgress('S3 버킷 조회 중', 20);
-    const buckets = await this.dataCollector.collectAllData();
-    results.buckets = buckets.buckets;
-    this.incrementResourceCount(buckets.buckets.length);
+    const buckets = await this.dataCollector.getBuckets();
+    results.buckets = buckets;
+    this.incrementResourceCount(buckets.length);
 
     this.updateProgress('CORS 설정 분석 중', 70);
-    await this.checkers.bucketCors.runAllChecks(buckets.buckets);
+    await this.checkers.bucketCors.runAllChecks(buckets);
 
     results.findings = this.findings;
   }
@@ -427,46 +437,8 @@ class S3Inspector extends BaseInspector {
     return mapping[severity] || 'MEDIUM';
   }
 
-  getVersion() {
-    return 's3-inspector-v1.0';
-  }
-
-  getSupportedInspectionTypes() {
-    return [
-      'bucket-policy',
-      'bucket-encryption',
-      'bucket-versioning',
-      'bucket-logging',
-      'bucket-public-access',
-      // 'bucket-mfa-delete', // 중복 검사로 비활성화
-      'bucket-lifecycle',
-      'bucket-cors'
-    ];
-  }
 
 
-
-  /**
-   * 기존 메서드들 (하위 호환성 유지)
-   */
-  async collectBucketData() {
-    return this.dataCollector ?
-      (await this.dataCollector.collectAllData()).buckets :
-      await this.dataCollector.getBuckets();
-  }
-
-  mapSeverityToRiskLevel(severity) {
-    const mapping = {
-      'pass': 'PASS',
-      'high': 'HIGH',
-      'medium': 'MEDIUM',
-      'low': 'LOW',
-      'info': 'LOW'
-    };
-    return mapping[severity] || 'MEDIUM';
-  }
 }
-
-module.exports = S3Inspector;
 
 module.exports = S3Inspector;

@@ -13,7 +13,7 @@ export const inspectionItems = {
         description: 'EC2 보안 설정 및 접근 제어 검사',
         items: [
           {
-            id: 'dangerous-ports',
+            id: 'dangerous_ports',
             name: '보안 그룹 - 위험한 포트 노출',
             shortDescription: 'SSH, RDP 등 위험한 포트의 인터넷 노출 검사',
             description: 'SSH(22), RDP(3389), 데이터베이스 포트(3306, 5432, 1433) 등이 인터넷(0.0.0.0/0)에 개방되어 있는지 검사합니다. 이러한 포트가 공개되면 무차별 대입 공격의 위험이 높아집니다.',
