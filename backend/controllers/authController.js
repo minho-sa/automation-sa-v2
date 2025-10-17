@@ -1,6 +1,7 @@
 const cognitoService = require('../services/cognitoService');
 const dynamoService = require('../services/dynamoService');
 const { generateToken } = require('../utils/jwt');
+const { User } = require('../models');
 
 /**
  * 회원가입 처리
@@ -10,34 +11,47 @@ const register = async (req, res) => {
     try {
         const { username, password, roleArn, companyName } = req.body;
 
-        // 1. 먼저 DynamoDB에서 사용자명 중복 확인
+        // 1. 모델을 사용한 입력 데이터 검증
+        const validation = User.helpers.validateRegistrationData({ username, password, roleArn, companyName });
+        if (!validation.isValid) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: User.ERROR_CODES.VALIDATION_ERROR,
+                    message: 'Registration data validation failed',
+                    details: validation.errors.join(', ')
+                }
+            });
+        }
+
+        // 2. DynamoDB에서 사용자명 중복 확인
         const existingUser = await dynamoService.getUserByUsername(username);
         if (existingUser.success) {
             return res.status(409).json({
                 success: false,
                 error: {
-                    code: 'USER_EXISTS',
+                    code: User.ERROR_CODES.USER_EXISTS,
                     message: 'Username already exists',
                     details: 'A user with this username already exists in the system'
                 }
             });
         }
 
-        // 2. AWS Cognito에 사용자 생성
+        // 3. AWS Cognito에 사용자 생성
         const cognitoResult = await cognitoService.createUser(username, password);
 
         if (!cognitoResult.success) {
             return res.status(500).json({
                 success: false,
                 error: {
-                    code: 'COGNITO_ERROR',
+                    code: User.ERROR_CODES.COGNITO_ERROR,
                     message: 'Failed to create user in Cognito',
                     details: 'User creation in AWS Cognito failed'
                 }
             });
         }
 
-        // 3. DynamoDB에 사용자 메타데이터 저장
+        // 4. DynamoDB에 사용자 메타데이터 저장
         const dynamoResult = await dynamoService.createUser({
             username,
             companyName,
@@ -56,14 +70,14 @@ const register = async (req, res) => {
             return res.status(500).json({
                 success: false,
                 error: {
-                    code: 'DATABASE_ERROR',
+                    code: User.ERROR_CODES.DATABASE_ERROR,
                     message: 'Failed to save user metadata',
                     details: 'User metadata could not be saved to database'
                 }
             });
         }
 
-        // 4. 성공 응답
+        // 5. 성공 응답
         res.status(201).json({
             success: true,
             message: 'User registered successfully',
@@ -77,34 +91,22 @@ const register = async (req, res) => {
         });
 
     } catch (error) {
-        // 에러 타입에 따른 적절한 응답
-        if (error.message.includes('사용자가 이미 존재합니다') || error.message.includes('already exists')) {
-            return res.status(409).json({
+        if (error.code) {
+            const statusCode = error.code === User.ERROR_CODES.USER_EXISTS ? 409 : 500;
+            return res.status(statusCode).json({
                 success: false,
                 error: {
-                    code: 'USER_EXISTS',
-                    message: 'User already exists',
+                    code: error.code,
+                    message: error.message,
                     details: error.message
                 }
             });
         }
 
-        if (error.message.includes('사용자 생성 실패') || error.message.includes('Cognito')) {
-            return res.status(500).json({
-                success: false,
-                error: {
-                    code: 'AUTH_FAILED',
-                    message: 'Authentication service error',
-                    details: 'Failed to create user in authentication service'
-                }
-            });
-        }
-
-        // 일반적인 서버 오류
         res.status(500).json({
             success: false,
             error: {
-                code: 'INTERNAL_ERROR',
+                code: User.ERROR_CODES.INTERNAL_ERROR,
                 message: 'Internal server error',
                 details: 'An unexpected error occurred during registration'
             }
@@ -120,28 +122,41 @@ const login = async (req, res) => {
     try {
         const { username, password } = req.body;
 
-        // 1. AWS Cognito를 통한 사용자 인증
+        // 1. 모델을 사용한 입력 데이터 검증
+        const validation = User.helpers.validateLoginData({ username, password });
+        if (!validation.isValid) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: User.ERROR_CODES.VALIDATION_ERROR,
+                    message: 'Login data validation failed',
+                    details: validation.errors.join(', ')
+                }
+            });
+        }
+
+        // 2. AWS Cognito를 통한 사용자 인증
         const cognitoResult = await cognitoService.authenticateUser(username, password);
 
         if (!cognitoResult.success) {
             return res.status(401).json({
                 success: false,
                 error: {
-                    code: 'AUTH_FAILED',
+                    code: User.ERROR_CODES.AUTH_FAILED,
                     message: 'Authentication failed',
                     details: 'Invalid username or password'
                 }
             });
         }
 
-        // 2. DynamoDB에서 사용자 상태 및 메타데이터 조회
+        // 3. DynamoDB에서 사용자 상태 및 메타데이터 조회
         const userResult = await dynamoService.getUserByUsername(username);
 
         if (!userResult.success) {
             return res.status(404).json({
                 success: false,
                 error: {
-                    code: 'USER_NOT_FOUND',
+                    code: User.ERROR_CODES.USER_NOT_FOUND,
                     message: 'User not found',
                     details: 'User metadata not found in database'
                 }
@@ -150,7 +165,7 @@ const login = async (req, res) => {
 
         const user = userResult.user;
 
-        // 3. JWT 토큰 생성
+        // 4. JWT 토큰 생성
         const tokenPayload = {
             userId: user.userId,
             username: user.username,
@@ -160,7 +175,7 @@ const login = async (req, res) => {
 
         const jwtToken = generateToken(tokenPayload);
 
-        // 4. 성공 응답 (사용자 상태 포함)
+        // 5. 성공 응답 (사용자 상태 포함)
         res.status(200).json({
             success: true,
             message: 'Login successful',
@@ -178,45 +193,27 @@ const login = async (req, res) => {
         });
 
     } catch (error) {
-        // 에러 타입에 따른 적절한 응답
-        if (error.message.includes('인증 실패') || error.message.includes('Authentication failed')) {
-            return res.status(401).json({
+        if (error.code) {
+            const statusCode = {
+                [User.ERROR_CODES.AUTH_FAILED]: 401,
+                [User.ERROR_CODES.USER_NOT_FOUND]: 404,
+                [User.ERROR_CODES.VALIDATION_ERROR]: 400
+            }[error.code] || 500;
+            
+            return res.status(statusCode).json({
                 success: false,
                 error: {
-                    code: 'AUTH_FAILED',
-                    message: 'Authentication failed',
-                    details: 'Invalid username or password'
+                    code: error.code,
+                    message: error.message,
+                    details: error.message
                 }
             });
         }
 
-        if (error.message.includes('사용자를 찾을 수 없습니다') || error.message.includes('User not found')) {
-            return res.status(404).json({
-                success: false,
-                error: {
-                    code: 'USER_NOT_FOUND',
-                    message: 'User not found',
-                    details: 'User account not found'
-                }
-            });
-        }
-
-        if (error.message.includes('토큰 생성 실패') || error.message.includes('JWT')) {
-            return res.status(500).json({
-                success: false,
-                error: {
-                    code: 'TOKEN_ERROR',
-                    message: 'Token generation failed',
-                    details: 'Failed to generate authentication token'
-                }
-            });
-        }
-
-        // 일반적인 서버 오류
         res.status(500).json({
             success: false,
             error: {
-                code: 'INTERNAL_ERROR',
+                code: User.ERROR_CODES.INTERNAL_ERROR,
                 message: 'Internal server error',
                 details: 'An unexpected error occurred during login'
             }
@@ -241,7 +238,7 @@ const verify = async (req, res) => {
                 success: false,
                 valid: false,
                 error: {
-                    code: 'USER_NOT_FOUND',
+                    code: User.ERROR_CODES.USER_NOT_FOUND,
                     message: 'User not found',
                     details: 'User metadata not found in database'
                 }
@@ -268,13 +265,11 @@ const verify = async (req, res) => {
         });
 
     } catch (error) {
-
-        
         res.status(500).json({
             success: false,
             valid: false,
             error: {
-                code: 'VERIFICATION_ERROR',
+                code: User.ERROR_CODES.VERIFICATION_ERROR,
                 message: 'Token verification failed',
                 details: 'An error occurred while verifying the token'
             }

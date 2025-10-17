@@ -1,10 +1,8 @@
-const {
-  QueryCommand,
-} = require('@aws-sdk/lib-dynamodb');
+const dynamoService = require('./dynamoService');
 // .env 파일 로드 확인
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 
-const { dynamoDBDocClient } = require('../config/aws');
+const { InspectionItemResult } = require('../models');
 
 /**
  * History Service (최적화됨)
@@ -19,7 +17,7 @@ class HistoryService {
   // 페이지네이션 설정 - 여기서만 수정하면 됨
   static DEFAULT_PAGE_SIZE = 10;
   constructor() {
-    this.client = dynamoDBDocClient;
+    this.dynamoService = dynamoService;
     // 단일 테이블 구조: InspectionItemResults 테이블만 사용
     this.tableName = process.env.AWS_DYNAMODB_INSPECTION_ITEMS_TABLE || 'InspectionItemResults';
   }
@@ -53,10 +51,13 @@ class HistoryService {
         ':customerId': customerId
       };
 
-      // 서비스 타입 필터
+      // 모델 헬퍼를 사용한 키 프리픽스 생성
       if (serviceType && serviceType !== 'all') {
+        const keyPrefix = historyMode === 'latest' 
+          ? `LATEST#${serviceType}#`
+          : `HISTORY#${serviceType}#`;
         keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
-        expressionAttributeValues[':itemKeyPrefix'] = `${itemKeyPrefix}${serviceType}#`;
+        expressionAttributeValues[':itemKeyPrefix'] = keyPrefix;
       } else {
         keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
         expressionAttributeValues[':itemKeyPrefix'] = itemKeyPrefix;
@@ -86,8 +87,12 @@ class HistoryService {
         params.ConsistentRead = true;
       }
 
-      const command = new QueryCommand(params);
-      const result = await this.client.send(command);
+      const result = await this.dynamoService.getInspectionHistory(customerId, {
+        historyMode,
+        serviceType,
+        lastEvaluatedKey,
+        limit
+      });
 
       if (!result.Items || result.Items.length === 0) {
         return {
@@ -107,10 +112,9 @@ class HistoryService {
             services[serviceType] = {};
           }
 
-          const { helpers } = require('../models/InspectionItemResult');
           let itemId;
           try {
-            const parsed = helpers.parseItemKey(item.itemKey);
+            const parsed = InspectionItemResult.helpers.parseItemKey(item.itemKey);
             itemId = parsed.itemId;
           } catch (error) {
             itemId = item.itemId || 'unknown';

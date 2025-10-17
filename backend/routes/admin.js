@@ -2,6 +2,7 @@ const express = require('express');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const dynamoService = require('../services/dynamoService');
 const stsService = require('../services/stsService');
+const { User } = require('../models');
 
 const router = express.Router();
 
@@ -81,14 +82,15 @@ router.put('/users/:userId/status', authenticateToken, requireAdmin, async (req,
     const { userId } = req.params;
     const { status } = req.body;
     
-    // 입력 데이터 검증
-    if (!userId || userId.trim() === '') {
+    // 모델을 사용한 입력 데이터 검증
+    const userIdValidation = User.helpers.validateUserId(userId);
+    if (!userIdValidation.isValid) {
       return res.status(400).json({
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
-          message: 'User ID is required',
-          details: 'userId parameter is missing or empty'
+          code: User.ERROR_CODES.VALIDATION_ERROR,
+          message: 'User ID validation failed',
+          details: userIdValidation.error
         }
       });
     }
@@ -97,21 +99,21 @@ router.put('/users/:userId/status', authenticateToken, requireAdmin, async (req,
       return res.status(400).json({
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
+          code: User.ERROR_CODES.VALIDATION_ERROR,
           message: 'Status is required',
           details: 'status field is missing in request body'
         }
       });
     }
     
-    // 상태 값 검증
-    if (!['approved', 'rejected'].includes(status)) {
+    // 모델을 사용한 상태 값 검증
+    if (!User.helpers.validateStatus(status)) {
       return res.status(400).json({
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
+          code: User.ERROR_CODES.INVALID_STATUS,
           message: 'Invalid status value',
-          details: 'Status must be either "approved" or "rejected"'
+          details: `Status must be either "${User.STATUS.APPROVED}" or "${User.STATUS.REJECTED}"`
         }
       });
     }
@@ -185,14 +187,15 @@ router.post('/users/:userId/validate-arn', authenticateToken, requireAdmin, asyn
   try {
     const { userId } = req.params;
     
-    // 입력 데이터 검증
-    if (!userId || userId.trim() === '') {
+    // 모델을 사용한 입력 데이터 검증
+    const userIdValidation = User.helpers.validateUserId(userId);
+    if (!userIdValidation.isValid) {
       return res.status(400).json({
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
-          message: 'User ID is required',
-          details: 'userId parameter is missing or empty'
+          code: User.ERROR_CODES.VALIDATION_ERROR,
+          message: 'User ID validation failed',
+          details: userIdValidation.error
         }
       });
     }

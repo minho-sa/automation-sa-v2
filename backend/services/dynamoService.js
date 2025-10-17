@@ -7,47 +7,48 @@ const {
   QueryCommand,
 } = require('@aws-sdk/lib-dynamodb');
 const { dynamoDBDocClient } = require('../config/aws');
+
+const { User } = require('../models');
 const { v4: uuidv4 } = require('uuid');
 
+/**
+ * 통합 DynamoDB 서비스
+ * 모든 DynamoDB 작업을 통합 관리 (비즈니스 로직 포함)
+ */
 class DynamoService {
   constructor() {
     this.client = dynamoDBDocClient;
-    this.tableName = process.env.AWS_DYNAMODB_TABLE_NAME || 'aws_v2';
+    this.tables = {
+      USERS: process.env.AWS_DYNAMODB_TABLE || 'aws_v2',
+      INSPECTION_ITEMS: process.env.AWS_DYNAMODB_INSPECTION_ITEMS_TABLE || 'InspectionItemResults'
+    };
   }
 
-  /**
-   * 새 사용자 메타데이터 생성
-   * @param {Object} userData - 사용자 데이터
-   * @returns {Promise<Object>} 생성 결과
-   */
+  // ========== 사용자 관련 작업 ==========
+  
   async createUser(userData) {
     try {
-      const userId = uuidv4();
-      const timestamp = new Date().toISOString();
+      // 모델을 사용한 데이터 검증
+      const validation = User.helpers.validateUserData(userData);
+      if (!validation.isValid) {
+        throw User.helpers.createError(
+          `입력 데이터 오류: ${validation.errors.join(', ')}`,
+          User.ERROR_CODES.VALIDATION_ERROR
+        );
+      }
 
+      const userId = uuidv4();
       const userRecord = {
         userId,
-        username: userData.username,
-        companyName: userData.companyName,
-        roleArn: userData.roleArn,
-        status: 'pending', // 기본 상태는 승인 대기
-        isAdmin: userData.isAdmin || false, // 관리자 권한 필드 (기본값: false)
-        arnValidation: {
-          isValid: null,
-          lastChecked: null,
-          error: null,
-        },
-        createdAt: timestamp,
-        updatedAt: timestamp,
+        ...User.helpers.createUserData(userData)
       };
 
-      const params = {
-        TableName: this.tableName,
+      const command = new PutCommand({
+        TableName: this.tables.USERS,
         Item: userRecord,
-        ConditionExpression: 'attribute_not_exists(userId)',
-      };
-
-      const command = new PutCommand(params);
+        ConditionExpression: 'attribute_not_exists(userId)'
+      });
+      
       await this.client.send(command);
 
       return {
@@ -56,30 +57,46 @@ class DynamoService {
         user: userRecord,
       };
     } catch (error) {
-      if (error.name === 'ConditionalCheckFailedException') {
-        throw new Error('사용자가 이미 존재합니다');
+      if (error.code === User.ERROR_CODES.VALIDATION_ERROR) {
+        throw error;
       }
-      throw new Error(`사용자 생성 실패: ${error.message}`);
+      if (error.name === 'ConditionalCheckFailedException') {
+        throw User.helpers.createError(
+          '사용자가 이미 존재합니다',
+          User.ERROR_CODES.DUPLICATE_USER
+        );
+      }
+      throw User.helpers.createError(
+        `사용자 생성 실패: ${error.message}`,
+        User.ERROR_CODES.DATABASE_ERROR,
+        error
+      );
     }
   }
 
-  /**
-   * 사용자 정보 조회 (userId로)
-   * @param {string} userId - 사용자 ID
-   * @returns {Promise<Object>} 사용자 정보
-   */
   async getUserById(userId) {
     try {
-      const params = {
-        TableName: this.tableName,
-        Key: { userId },
-      };
+      // 모델을 사용한 사용자 ID 검증
+      const userIdValidation = User.helpers.validateUserId(userId);
+      if (!userIdValidation.isValid) {
+        throw User.helpers.createError(
+          userIdValidation.error,
+          User.ERROR_CODES.MISSING_PARAMETER
+        );
+      }
 
-      const command = new GetCommand(params);
+      const command = new GetCommand({
+        TableName: this.tables.USERS,
+        Key: { userId }
+      });
+      
       const result = await this.client.send(command);
 
       if (!result.Item) {
-        return { success: false, error: '사용자를 찾을 수 없습니다' };
+        throw User.helpers.createError(
+          '사용자를 찾을 수 없습니다',
+          User.ERROR_CODES.USER_NOT_FOUND
+        );
       }
 
       return {
@@ -87,27 +104,26 @@ class DynamoService {
         user: result.Item,
       };
     } catch (error) {
-      throw new Error(`사용자 조회 실패: ${error.message}`);
+      if (error.code) {
+        throw error;
+      }
+      throw User.helpers.createError(
+        `사용자 조회 실패: ${error.message}`,
+        User.ERROR_CODES.DATABASE_ERROR,
+        error
+      );
     }
   }
 
-  /**
-   * 사용자 정보 조회 (username으로)
-   * @param {string} username - 사용자명
-   * @returns {Promise<Object>} 사용자 정보
-   */
   async getUserByUsername(username) {
     try {
-      const params = {
-        TableName: this.tableName,
+      const command = new QueryCommand({
+        TableName: this.tables.USERS,
         IndexName: 'username-index',
         KeyConditionExpression: 'username = :username',
-        ExpressionAttributeValues: {
-          ':username': username,
-        },
-      };
-
-      const command = new QueryCommand(params);
+        ExpressionAttributeValues: { ':username': username }
+      });
+      
       const result = await this.client.send(command);
 
       if (!result.Items || result.Items.length === 0) {
@@ -119,38 +135,48 @@ class DynamoService {
         user: result.Items[0],
       };
     } catch (error) {
-      throw new Error(`사용자 조회 실패: ${error.message}`);
+      throw User.helpers.createError(
+        `사용자 조회 실패: ${error.message}`,
+        User.ERROR_CODES.DATABASE_ERROR,
+        error
+      );
     }
   }
 
-
-
-  /**
-   * 사용자 상태 업데이트
-   * @param {string} userId - 사용자 ID
-   * @param {string} status - 새로운 상태 (pending, approved, rejected)
-   * @returns {Promise<Object>} 업데이트 결과
-   */
   async updateUserStatus(userId, status) {
     try {
-      const timestamp = new Date().toISOString();
+      // 모델을 사용한 사용자 ID 검증
+      const userIdValidation = User.helpers.validateUserId(userId);
+      if (!userIdValidation.isValid) {
+        throw User.helpers.createError(
+          userIdValidation.error,
+          User.ERROR_CODES.MISSING_PARAMETER
+        );
+      }
 
-      const params = {
-        TableName: this.tableName,
+      // 모델을 사용한 상태 검증
+      if (!User.helpers.validateStatus(status)) {
+        throw User.helpers.createError(
+          `유효하지 않은 상태: ${status}. 가능한 값: ${Object.values(User.STATUS).join(', ')}`,
+          User.ERROR_CODES.INVALID_STATUS
+        );
+      }
+
+      const updateData = User.helpers.createUpdateData({ status });
+
+      const command = new UpdateCommand({
+        TableName: this.tables.USERS,
         Key: { userId },
         UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
-        ExpressionAttributeNames: {
-          '#status': 'status',
-        },
+        ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
-          ':status': status,
-          ':updatedAt': timestamp,
+          ':status': updateData.status,
+          ':updatedAt': updateData.updatedAt
         },
         ConditionExpression: 'attribute_exists(userId)',
-        ReturnValues: 'ALL_NEW',
-      };
-
-      const command = new UpdateCommand(params);
+        ReturnValues: 'ALL_NEW'
+      });
+      
       const result = await this.client.send(command);
 
       return {
@@ -158,41 +184,40 @@ class DynamoService {
         user: result.Attributes,
       };
     } catch (error) {
-      if (error.name === 'ConditionalCheckFailedException') {
-        throw new Error('사용자를 찾을 수 없습니다');
+      if (error.code) {
+        throw error;
       }
-      throw new Error(`사용자 상태 업데이트 실패: ${error.message}`);
+      if (error.name === 'ConditionalCheckFailedException') {
+        throw User.helpers.createError(
+          '사용자를 찾을 수 없습니다',
+          User.ERROR_CODES.USER_NOT_FOUND
+        );
+      }
+      throw User.helpers.createError(
+        `사용자 상태 업데이트 실패: ${error.message}`,
+        User.ERROR_CODES.DATABASE_ERROR,
+        error
+      );
     }
   }
 
-  /**
-   * ARN 검증 결과 업데이트
-   * @param {string} userId - 사용자 ID
-   * @param {boolean} isValid - ARN 유효성
-   * @param {string} error - 오류 메시지 (있는 경우)
-   * @returns {Promise<Object>} 업데이트 결과
-   */
   async updateArnValidation(userId, isValid, error = null) {
     try {
-      const timestamp = new Date().toISOString();
+      const arnValidation = User.helpers.createArnValidation(isValid, error);
+      const updateData = User.helpers.createUpdateData({ arnValidation });
 
-      const params = {
-        TableName: this.tableName,
+      const command = new UpdateCommand({
+        TableName: this.tables.USERS,
         Key: { userId },
         UpdateExpression: 'SET arnValidation = :arnValidation, updatedAt = :updatedAt',
         ExpressionAttributeValues: {
-          ':arnValidation': {
-            isValid,
-            lastChecked: timestamp,
-            error,
-          },
-          ':updatedAt': timestamp,
+          ':arnValidation': updateData.arnValidation,
+          ':updatedAt': updateData.updatedAt
         },
         ConditionExpression: 'attribute_exists(userId)',
-        ReturnValues: 'ALL_NEW',
-      };
-
-      const command = new UpdateCommand(params);
+        ReturnValues: 'ALL_NEW'
+      });
+      
       const result = await this.client.send(command);
 
       return {
@@ -201,23 +226,56 @@ class DynamoService {
       };
     } catch (error) {
       if (error.name === 'ConditionalCheckFailedException') {
-        throw new Error('사용자를 찾을 수 없습니다');
+        throw User.helpers.createError(
+          '사용자를 찾을 수 없습니다',
+          User.ERROR_CODES.USER_NOT_FOUND
+        );
       }
-      throw new Error(`ARN 검증 결과 업데이트 실패: ${error.message}`);
+      throw User.helpers.createError(
+        `ARN 검증 결과 업데이트 실패: ${error.message}`,
+        User.ERROR_CODES.DATABASE_ERROR,
+        error
+      );
     }
   }
 
-  /**
-   * 모든 사용자 목록 조회
-   * @returns {Promise<Object>} 사용자 목록
-   */
+  async updateUserTimestamp(userId) {
+    try {
+      const timestampData = User.helpers.createTimestampUpdate();
+      
+      const command = new UpdateCommand({
+        TableName: this.tables.USERS,
+        Key: { userId },
+        UpdateExpression: 'SET updatedAt = :timestamp',
+        ExpressionAttributeValues: {
+          ':timestamp': timestampData.updatedAt
+        },
+        ConditionExpression: 'attribute_exists(userId)'
+      });
+      
+      await this.client.send(command);
+      return { success: true };
+    } catch (error) {
+      if (error.name === 'ConditionalCheckFailedException') {
+        throw User.helpers.createError(
+          '사용자를 찾을 수 없습니다',
+          User.ERROR_CODES.USER_NOT_FOUND
+        );
+      }
+      throw User.helpers.createError(
+        `사용자 타임스탬프 업데이트 실패: ${error.message}`,
+        User.ERROR_CODES.DATABASE_ERROR,
+        error
+      );
+    }
+  }
+
   async getAllUsers() {
     try {
-      const params = {
-        TableName: this.tableName,
-      };
-
-      const command = new ScanCommand(params);
+      const command = new ScanCommand({
+        TableName: this.tables.USERS
+      });
+      
       const result = await this.client.send(command);
 
       return {
@@ -226,39 +284,117 @@ class DynamoService {
         count: result.Count || 0,
       };
     } catch (error) {
-      throw new Error(`사용자 목록 조회 실패: ${error.message}`);
+      throw User.helpers.createError(
+        `사용자 목록 조회 실패: ${error.message}`,
+        User.ERROR_CODES.DATABASE_ERROR,
+        error
+      );
     }
   }
 
+  // ========== 검사 결과 관련 작업 ==========
 
+  async saveInspectionItem(itemData) {
+    const command = new PutCommand({
+      TableName: this.tables.INSPECTION_ITEMS,
+      Item: itemData
+    });
+    return await this.client.send(command);
+  }
 
-  /**
-   * 사용자 타임스탬프 업데이트 (비밀번호 변경 등)
-   * @param {string} userId - 사용자 ID
-   * @returns {Promise<Object>} 업데이트 결과
-   */
-  async updateUserTimestamp(userId) {
-    try {
-      const timestamp = new Date().toISOString();
-      
-      const params = {
-        TableName: this.tableName,
-        Key: { userId },
-        UpdateExpression: 'SET updatedAt = :timestamp',
-        ExpressionAttributeValues: {
-          ':timestamp': timestamp
-        },
-        ConditionExpression: 'attribute_exists(userId)'
-      };
-
-      await this.client.send(new UpdateCommand(params));
-      return { success: true };
-    } catch (error) {
-      if (error.name === 'ConditionalCheckFailedException') {
-        throw new Error('사용자를 찾을 수 없습니다');
-      }
-      throw new Error(`사용자 타임스탬프 업데이트 실패: ${error.message}`);
+  async getInspectionHistory(customerId, options = {}) {
+    const { historyMode = 'history', serviceType, lastEvaluatedKey, limit = 10 } = options;
+    
+    let keyConditionExpression = 'customerId = :customerId';
+    let expressionAttributeValues = { ':customerId': customerId };
+    
+    // 서비스 타입별 필터링
+    if (serviceType && serviceType !== 'all') {
+      const keyPrefix = historyMode === 'latest' 
+        ? `LATEST#${serviceType}#`
+        : `HISTORY#${serviceType}#`;
+      keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
+      expressionAttributeValues[':prefix'] = keyPrefix;
+    } else {
+      const keyPrefix = historyMode === 'latest' ? 'LATEST#' : 'HISTORY#';
+      keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
+      expressionAttributeValues[':prefix'] = keyPrefix;
     }
+
+    const params = {
+      TableName: this.tables.INSPECTION_ITEMS,
+      KeyConditionExpression: keyConditionExpression,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ScanIndexForward: false,
+      Limit: limit
+    };
+
+    if (lastEvaluatedKey) {
+      try {
+        params.ExclusiveStartKey = typeof lastEvaluatedKey === 'string'
+          ? JSON.parse(lastEvaluatedKey)
+          : lastEvaluatedKey;
+      } catch (parseError) {
+        console.warn('Invalid lastEvaluatedKey format:', parseError.message);
+      }
+    }
+
+    if (historyMode === 'latest') {
+      params.ConsistentRead = true;
+    }
+
+    const command = new QueryCommand(params);
+    return await this.client.send(command);
+  }
+
+  // ========== 범용 DynamoDB 작업 ==========
+
+  async batchWrite(tableName, items) {
+    // 배치 쓰기 구현
+    const chunks = this.chunkArray(items, 25); // DynamoDB 배치 제한
+    const results = [];
+
+    for (const chunk of chunks) {
+      const command = new PutCommand({
+        TableName: tableName,
+        Item: chunk
+      });
+      results.push(await this.client.send(command));
+    }
+
+    return results;
+  }
+
+  async query(tableName, keyCondition, options = {}) {
+    const command = new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: keyCondition.expression,
+      ExpressionAttributeValues: keyCondition.values,
+      ...options
+    });
+    return await this.client.send(command);
+  }
+
+  async scan(tableName, options = {}) {
+    const command = new ScanCommand({
+      TableName: tableName,
+      ...options
+    });
+    return await this.client.send(command);
+  }
+
+  // ========== 헬퍼 메서드 ==========
+
+  chunkArray(array, size) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += size) {
+      chunks.push(array.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  getTableName(tableType) {
+    return this.tables[tableType] || tableType;
   }
 }
 

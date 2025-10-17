@@ -1,5 +1,4 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
+const dynamoService = require('./dynamoService');
 
 // 환경변수 로드
 require('dotenv').config();
@@ -10,9 +9,7 @@ require('dotenv').config();
  */
 class InspectionItemService {
   constructor() {
-    this.client = DynamoDBDocumentClient.from(new DynamoDBClient({
-      region: process.env.AWS_REGION || 'us-east-1'
-    }));
+    this.dynamoService = dynamoService;
     this.tableName = process.env.AWS_DYNAMODB_INSPECTION_ITEMS_TABLE || 'InspectionItemResults';
   }
 
@@ -34,11 +31,11 @@ class InspectionItemService {
         findings: itemResult.findings || []
       };
 
-      // Helper 함수 import
-      const { helpers } = require('../models/InspectionItemResult');
+      // 모델 헬퍼 함수 사용
+      const { InspectionItemResult } = require('../models');
 
       // 1. 히스토리용 레코드 저장 (검사 ID 포함, 시간순 정렬)
-      const historyKey = helpers.createHistoryKey(
+      const historyKey = InspectionItemResult.helpers.createHistoryKey(
         itemResult.serviceType,
         itemResult.itemId,
         now,
@@ -53,7 +50,7 @@ class InspectionItemService {
       };
 
       // 2. 최신 상태용 레코드 저장/업데이트 (LATEST)
-      const latestKey = helpers.createLatestKey(itemResult.serviceType, itemResult.itemId);
+      const latestKey = InspectionItemResult.helpers.createLatestKey(itemResult.serviceType, itemResult.itemId);
       const latestItem = {
         ...baseItem,
         itemKey: latestKey,
@@ -63,14 +60,8 @@ class InspectionItemService {
 
       // 두 레코드 모두 저장
       await Promise.all([
-        this.client.send(new PutCommand({
-          TableName: this.tableName,
-          Item: historyItem
-        })),
-        this.client.send(new PutCommand({
-          TableName: this.tableName,
-          Item: latestItem
-        }))
+        this.dynamoService.saveInspectionItem(historyItem),
+        this.dynamoService.saveInspectionItem(latestItem)
       ]);
 
       console.log(`✅ [InspectionItemService] Saved both LATEST and HISTORY records:`, {

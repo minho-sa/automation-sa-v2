@@ -1,13 +1,13 @@
-const cognitoService = require('./cognitoService');
-const dynamoService = require('./dynamoService');
 const stsService = require('./stsService');
+const dynamoService = require('./dynamoService');
+const cognitoService = require('./cognitoService');
 const historyService = require('./historyService');
 const inspectors = require('./inspectors');
 
 module.exports = {
-  cognitoService,
-  dynamoService,
   stsService,
+  dynamoService,
+  cognitoService,
   historyService,
   inspectors,
 };

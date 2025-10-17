@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticateToken, requireApprovedUser } = require('../middleware/auth');
 const dynamoService = require('../services/dynamoService');
+const { User } = require('../models');
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: {
-          code: 'USER_NOT_FOUND',
+          code: User.ERROR_CODES.USER_NOT_FOUND,
           message: 'User profile not found',
           details: 'User metadata not found in database'
         }
@@ -35,43 +36,20 @@ router.get('/profile', authenticateToken, async (req, res) => {
 
     const user = userResult.user;
     
-    // 사용자 상태에 따른 메시지 설정 (Requirements 4.3, 4.4, 4.5)
-    let statusMessage = '';
-    let accessLevel = 'none';
-    
-    switch (user.status) {
-      case 'pending':
-        statusMessage = 'Your account is waiting for administrator approval. You will be notified once your account is reviewed.';
-        accessLevel = 'limited';
-        break;
-      case 'rejected':
-        statusMessage = 'Your account has been rejected by an administrator. Please contact support for more information.';
-        accessLevel = 'denied';
-        break;
-      case 'approved':
-        statusMessage = 'Your account is active and you have full access to all features.';
-        accessLevel = 'full';
-        break;
-      default:
-        statusMessage = 'Unknown account status. Please contact support.';
-        accessLevel = 'none';
-    }
+    // 모델 헬퍼를 사용한 상태 메시지 생성
+    const statusInfo = getStatusInfo(user.status);
+    const statusMessage = statusInfo.message;
+    const accessLevel = statusInfo.accessLevel;
 
     // 성공 응답 (Requirement 4.2)
+    const userData = User.helpers.filterUserData(user, true);
     res.json({
       success: true,
       message: 'Profile retrieved successfully',
       data: {
-        userId: user.userId,
-        username: user.username,
-        companyName: user.companyName,
-        roleArn: user.roleArn,
-        status: user.status,
+        ...userData,
         statusMessage,
-        accessLevel,
-        arnValidation: user.arnValidation,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt
+        accessLevel
       }
     });
     
@@ -86,7 +64,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
       return res.status(404).json({
         success: false,
         error: {
-          code: 'USER_NOT_FOUND',
+          code: User.ERROR_CODES.USER_NOT_FOUND,
           message: 'User profile not found',
           details: 'User account not found in database'
         }
@@ -97,7 +75,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: User.ERROR_CODES.DATABASE_ERROR,
         message: 'Failed to retrieve profile',
         details: 'An error occurred while retrieving user profile'
       }
@@ -142,7 +120,7 @@ router.get('/dashboard', authenticateToken, requireApprovedUser, (req, res) => {
     res.status(500).json({
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: User.ERROR_CODES.DATABASE_ERROR,
         message: 'Failed to retrieve dashboard',
         details: 'An error occurred while retrieving dashboard data'
       }
@@ -167,50 +145,15 @@ router.put('/password', authenticateToken, async (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body;
     const { username } = req.user;
 
-    // 입력 검증
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    // 모델을 사용한 비밀번호 검증
+    const validation = User.helpers.validatePasswordChange({ currentPassword, newPassword, confirmPassword });
+    if (!validation.isValid) {
       return res.status(400).json({
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Missing required fields',
-          details: 'Current password, new password, and confirm password are required'
-        }
-      });
-    }
-
-    // 새 비밀번호 길이 검증
-    if (newPassword.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Password too short',
-          details: 'New password must be at least 8 characters long'
-        }
-      });
-    }
-
-    // 새 비밀번호 확인
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Password confirmation mismatch',
-          details: 'New password and confirm password do not match'
-        }
-      });
-    }
-
-    // 현재 비밀번호와 새 비밀번호가 같은지 확인
-    if (currentPassword === newPassword) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Same password',
-          details: 'New password must be different from current password'
+          code: User.ERROR_CODES.VALIDATION_ERROR,
+          message: 'Password validation failed',
+          details: validation.errors.join(', ')
         }
       });
     }
@@ -223,7 +166,7 @@ router.put('/password', authenticateToken, async (req, res) => {
       return res.status(401).json({
         success: false,
         error: {
-          code: 'INVALID_CURRENT_PASSWORD',
+          code: User.ERROR_CODES.INVALID_CURRENT_PASSWORD,
           message: 'Current password is incorrect',
           details: 'The provided current password does not match'
         }
@@ -237,7 +180,7 @@ router.put('/password', authenticateToken, async (req, res) => {
       return res.status(500).json({
         success: false,
         error: {
-          code: 'PASSWORD_CHANGE_FAILED',
+          code: User.ERROR_CODES.PASSWORD_CHANGE_FAILED,
           message: 'Failed to change password',
           details: changeResult.error || 'An error occurred while changing password'
         }
@@ -266,12 +209,38 @@ router.put('/password', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: {
-        code: 'INTERNAL_ERROR',
+        code: User.ERROR_CODES.DATABASE_ERROR,
         message: 'Failed to change password',
         details: 'An internal error occurred while changing password'
       }
     });
   }
 });
+
+// 상태별 메시지 생성 헬퍼 함수
+function getStatusInfo(status) {
+  switch (status) {
+    case User.STATUS.PENDING:
+      return {
+        message: 'Your account is waiting for administrator approval. You will be notified once your account is reviewed.',
+        accessLevel: 'limited'
+      };
+    case User.STATUS.REJECTED:
+      return {
+        message: 'Your account has been rejected by an administrator. Please contact support for more information.',
+        accessLevel: 'denied'
+      };
+    case User.STATUS.APPROVED:
+      return {
+        message: 'Your account is active and you have full access to all features.',
+        accessLevel: 'full'
+      };
+    default:
+      return {
+        message: 'Unknown account status. Please contact support.',
+        accessLevel: 'none'
+      };
+  }
+}
 
 module.exports = router;

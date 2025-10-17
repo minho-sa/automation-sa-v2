@@ -9,7 +9,6 @@
  * - Assume Role 처리
  */
 
-const { AssumeRoleCommand } = require('@aws-sdk/client-sts');
 const stsService = require('./stsService');
 const { v4: uuidv4 } = require('uuid');
 // InspectionResult 제거 - InspectionItemResult만 사용
@@ -387,49 +386,14 @@ class InspectionService {
    */
   async assumeRole(roleArn, inspectionId) {
     try {
-      // STSService를 사용하여 기본 검증 먼저 수행
-      if (!stsService.isValidArnFormat(roleArn)) {
-        throw new Error(`Invalid ARN format: ${roleArn}`);
-      }
-
-      // 검사 전용 AssumeRole 수행 (장기 세션 + ExternalId)
-      const command = new AssumeRoleCommand({
-        RoleArn: roleArn,
-        RoleSessionName: `inspection-${inspectionId}`,
-        DurationSeconds: 3600, // 1시간 (검사용 장기 세션)
-        ExternalId: process.env.AWS_EXTERNAL_ID // 보안 강화
-      });
-
-      const response = await stsService.client.send(command);
-
-      if (!response.Credentials) {
-        throw new Error('No credentials returned from assume role operation');
-      }
-
-      return {
-        accessKeyId: response.Credentials.AccessKeyId,
-        secretAccessKey: response.Credentials.SecretAccessKey,
-        sessionToken: response.Credentials.SessionToken,
-        expiration: response.Credentials.Expiration,
-        roleArn: roleArn,
-        region: process.env.AWS_REGION || 'us-east-1'
-      };
-
+      return await stsService.assumeRoleForInspection(roleArn, inspectionId);
     } catch (error) {
       this.logger.error('Failed to assume role for inspection', {
         roleArn,
         inspectionId,
         error: error.message
       });
-
-      // STSService와 동일한 에러 처리 로직 재사용
-      if (error.name === 'AccessDenied') {
-        throw new Error(`Access denied when assuming role ${roleArn}. Please check role permissions and trust policy.`);
-      } else if (error.name === 'InvalidParameterValue') {
-        throw new Error(`Invalid role ARN: ${roleArn}`);
-      } else {
-        throw new Error(`Failed to assume role: ${error.message}`);
-      }
+      throw error;
     }
   }
 
