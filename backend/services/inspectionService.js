@@ -260,7 +260,7 @@ class InspectionService {
       // 2. Inspector 가져오기
       currentStepIndex++;
       this.updateInspectionProgress(inspectionId, steps, currentStepIndex);
-      inspector = inspectorRegistry.getInspector(serviceType);
+      inspector = inspectorRegistry.createInspector(serviceType);
       if (!inspector) {
         throw new Error(`Inspector not found for service type: ${serviceType}`);
       }

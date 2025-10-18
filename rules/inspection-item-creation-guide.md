@@ -1,298 +1,411 @@
-# 검사 항목 추가 가이드
+# Checker 설계 원칙
 
-새로운 검사 항목을 추가하는 방법을 단계별로 설명합니다.
+## 핵심 설계 철학
 
-## 1. 검사 항목 구조
+**각 Inspector는 자신의 도메인에 특화된 검증과 검사를 수행한다.**
+
+- 데이터 형식은 서비스마다 다르므로 각 Inspector에서 처리
+- 검사 로직은 도메인별로 완전히 다르므로 분리 유지
+- 과도한 추상화보다는 실용적 설계 우선
+
+## 1. Inspector 구조
 
 ```
 backend/services/inspectors/
+├── baseInspector.js          # 공통 플로우만 관리
 ├── ec2/
-│   ├── checks/
-│   │   └── newItemChecker.js     # 새 검사 로직
-│   └── index.js                  # Inspector 메인 파일
-├── s3/
-│   ├── checks/
-│   │   └── newItemChecker.js     # 새 검사 로직
-│   └── index.js                  # Inspector 메인 파일
-└── iam/
-    ├── checks/
-    │   └── newItemChecker.js     # 새 검사 로직
-    └── index.js                  # Inspector 메인 파일
+│   ├── index.js             # EC2Inspector
+│   └── checks/
+│       └── securityGroupInspector.js
+└── s3/
+    ├── index.js             # S3Inspector  
+    └── checks/
+        └── bucketInspector.js
 ```
 
-## 2. 검사 로직 파일 생성
+## 2. 필수 구현 사항
 
-### 2.1 Checker 클래스 생성 (예: EC2)
+### 2.1 BaseInspector 상속
 
 ```javascript
-// backend/services/inspectors/ec2/checks/newItemChecker.js
-const InspectionFinding = require('../../../../models/InspectionFinding');
-
-class NewItemChecker {
-  constructor(inspector) {
-    this.inspector = inspector;
-  }
-
-  async runAllChecks(resources) {
-    for (const resource of resources) {
-      await this.checkNewItem(resource);
-    }
-  }
-
-  async checkNewItem(resource) {
-    // 검사 로직 구현
-    if (/* 문제 조건 */) {
-      const finding = new InspectionFinding({
-        resourceId: resource.ResourceId,
-        resourceType: 'ResourceType',
-        issue: '문제 설명',
-        recommendation: '권장 사항'
-      });
-      this.inspector.addFinding(finding);
-    }
+class SecurityGroupInspector extends BaseInspector {
+  constructor() {
+    super('EC2'); // 서비스 타입 지정
   }
 }
-
-module.exports = NewItemChecker;
 ```
 
-## 3. Inspector 메인 파일 수정
-
-### 3.1 Checker Import 추가
+### 2.2 필수 메서드 구현
 
 ```javascript
-// backend/services/inspectors/ec2/index.js
-const NewItemChecker = require('./checks/newItemChecker');
+// 1. 실제 검사 로직
+async performInspection(awsCredentials, inspectionConfig) {
+  // AWS 클라이언트 초기화
+  // 데이터 수집
+  // 검사 수행
+}
 
-class EC2Inspector extends BaseInspector {
-  constructor(options = {}) {
-    super('EC2', options);
-    
-    this.checkers = {
-      // 기존 checkers...
-      newItem: new NewItemChecker(this)
-    };
+// 2. InspectionService 호환
+async executeItemInspection(customerId, inspectionId, awsCredentials, inspectionConfig) {
+  const findings = await this.executeInspection(awsCredentials, inspectionConfig);
+  return [{
+    serviceType: this.serviceType,
+    itemId: inspectionConfig.targetItem || 'default',
+    findings: findings,
+    inspectionTime: Date.now(),
+    resourcesScanned: this.resourcesScanned
+  }];
+}
+```
+
+## 3. 데이터 수집 및 검증 패턴
+
+### 3.1 직접 데이터 수집 (권장)
+
+```javascript
+// 직접 데이터 수집 방식 (단순하고 안정적)
+const instances = await this.dataCollector.getEC2Instances();
+const snapshots = await this.dataCollector.getSnapshots();
+
+if (!Array.isArray(instances)) {
+  this.addFinding('instances', 'EC2Instance', '데이터 형식 오류', '데이터 구조 확인');
+  throw new Error('데이터 형식 오류');
+}
+
+await this.checkResources(instances, snapshots);
+```
+
+### 3.2 collectAndValidate 활용 (선택적)
+
+```javascript
+const collector = {
+  collect: () => this.dataCollector.getSecurityGroups()
+};
+
+const result = await this.collectAndValidate(collector, null);
+
+if (result.status === 'SUCCESS') {
+  if (!Array.isArray(result.data)) {
+    this.addFinding('resource-id', 'ResourceType', '형식 오류', '권장사항');
+    throw new Error('데이터 형식 오류');
   }
+  await this.checkResources(result.data);
+} else if (result.status === 'ERROR') {
+  this.handleAWSError(result.error);
+  throw new Error(`수집 실패: ${result.reason}`);
+}
 ```
 
-### 3.2 지원 검사 유형 추가
+### 3.3 도메인별 형식 검증
 
 ```javascript
-getSupportedInspectionTypes() {
-  return [
-    // 기존 항목들...
-    'new-item'
+// 각 Inspector마다 자신의 데이터 형식 검증
+validateSecurityGroupFormat(sg) {
+  if (!sg.GroupId) return { valid: false, error: 'GroupId 누락' };
+  if (!sg.IpPermissions) return { valid: false, error: 'IpPermissions 누락' };
+  if (!Array.isArray(sg.IpPermissions)) return { valid: false, error: 'IpPermissions가 배열이 아님' };
+  return { valid: true };
+}
+```
+
+## 4. 에러 처리 패턴
+
+### 4.1 AWS 에러 처리
+
+```javascript
+handleAWSError(error) {
+  switch (error.name) {
+    case 'UnauthorizedOperation':
+      this.addFinding('system', 'Permission', 'AWS 권한 부족', 'IAM 정책 확인');
+      break;
+    case 'ExpiredToken':
+      this.addFinding('system', 'Auth', '토큰 만료', '자격 증명 갱신');
+      break;
+    default:
+      this.recordError(error, { context: 'AWS API 호출' });
+  }
+}
+```
+
+### 4.2 형식 오류 처리
+
+```javascript
+// 형식 오류는 한 번만 기록
+let hasFormatError = false;
+const formatErrors = new Set();
+
+for (const resource of resources) {
+  const validation = this.validateResourceFormat(resource);
+  if (!validation.valid) {
+    if (!hasFormatError) {
+      formatErrors.add(validation.error);
+      hasFormatError = true;
+    }
+    continue;
+  }
+  // 실제 검사 수행
+}
+
+if (hasFormatError) {
+  this.addFinding('format-error', 'System', 
+    `데이터 형식 오류: ${Array.from(formatErrors).join(', ')}`, 
+    '데이터 구조 확인');
+}
+```
+
+## 5. 성능 최적화 고려사항
+
+### 5.1 상수 데이터 미리 변환
+
+```javascript
+constructor() {
+  super('EC2');
+  // 성능 최적화: 반복 사용되는 데이터 미리 변환
+  this.dangerousPortsArray = [
+    { port: 22, service: 'SSH' },
+    { port: 3389, service: 'RDP' }
   ];
 }
 ```
 
-### 3.3 개별 검사 메서드 추가
+### 5.2 불필요한 검사 건너뛰기
 
 ```javascript
-// performItemInspection 메서드에 case 추가
+if (!securityGroup.IpPermissions?.length) return;
+if (fromPort === undefined || toPort === undefined) continue;
+```
+
+## 6. 필수 호출 메서드
+
+```javascript
+// 리소스 카운트 증가
+this.incrementResourceCount();
+
+// Finding 추가
+this.addFinding(resourceId, resourceType, issue, recommendation);
+
+// 에러 기록
+this.recordError(error, context);
+
+// 알려지지 않은 검사 항목 처리
+this.handleUnknownInspectionItem(itemType);
+
+// 수집 실패 처리
+this.handleCollectionFailure(validation, targetId, resourceType);
+
+// API 재시도 호출 (DataCollector 사용 시 필수)
+this.retryableApiCall(apiCall, operationName, maxRetries);
+```
+
+## 7. 개별 항목 검사 지원
+
+```javascript
+// EC2Inspector에서 개별 항목 검사 처리 예시
 async performItemInspection(awsCredentials, inspectionConfig) {
-  const targetItem = inspectionConfig.targetItem;
-  const results = {
-    securityGroups: [],
-    instances: [],
-    findings: []
-  };
+  const targetItem = inspectionConfig.targetItem || inspectionConfig.targetItemId;
   
-  try {
-    switch (targetItem) {
-      // 기존 cases...
-      case 'new-item':
-        await this._inspectNewItem(results);
-        break;
-      
-      default:
-        // 알 수 없는 검사 항목에 대한 Finding 생성
-        const finding = new InspectionFinding({
-          resourceId: 'SYSTEM',
-          resourceType: 'InspectionError',
-          issue: `알 수 없는 검사 항목: ${targetItem}`,
-          recommendation: '검사에 실패했습니다. 관리자에게 문의하세요.'
-        });
-        this.addFinding(finding);
-        
-        const error = new Error(`Unknown inspection item: ${targetItem}`);
-        this.recordError(error, { targetItem });
-        throw error;
-    }
-    
-    this.updateProgress('분석 완료 중', 95);
-    results.findings = this.findings;
-    return results;
-    
-  } catch (error) {
-    this.recordError(error, { targetItem });
-    throw error;
+  if (targetItem === 'all') {
+    return await this.performInspection(awsCredentials, inspectionConfig);
   }
-}
-
-// 개별 검사 메서드 구현
-async _inspectNewItem(results) {
-  // 개별 검사를 위해 findings 초기화
-  this.findings = [];
   
-  this.updateProgress('리소스 조회 중', 20);
-  const resources = await this.dataCollector.getSpecificResources(); // 실제 메서드명 사용
-  results.resources = resources;
-  this.incrementResourceCount(resources.length);
-  
-  this.updateProgress('새 항목 분석 중', 70);
-  await this.checkers.newItem.runAllChecks(resources);
-  
-  results.findings = this.findings;
-}
-```
-
-### 3.4 전체 검사에 추가
-
-```javascript
-async performInspection(awsCredentials, inspectionConfig) {
-  // 기존 검사들...
-  
-  // 새 검사 추가
-  this.updateProgress('새 항목 분석 중', 85);
-  await this.checkers.newItem.runAllChecks(data.resources);
-}
-```
-
-## 4. 데이터 수집기 확장 (필요시)
-
-새로운 AWS 리소스 타입이 필요한 경우 데이터 수집기에 메서드를 추가합니다.
-
-### 4.1 새로운 AWS API 호출 추가
-
-```javascript
-// backend/services/inspectors/ec2/collectors/ec2DataCollector.js
-async getNewResources() {
-  try {
-    const command = new DescribeNewResourcesCommand({});
-    const response = await this.inspector.retryableApiCall(
-      () => this.ec2Client.send(command),
-      'DescribeNewResources'
-    );
-    return response.Resources || [];
-  } catch (error) {
-    this.inspector.recordError(error, { operation: 'getNewResources' });
-    return [];
+  if (targetItem === 'security-groups') {
+    const sgInspector = new SecurityGroupInspector();
+    await sgInspector.executeInspection(awsCredentials, inspectionConfig);
+    this.findings.push(...sgInspector.findings);
+    this.incrementResourceCount(sgInspector.resourcesScanned);
+    return;
   }
+  
+  this.handleUnknownInspectionItem(targetItem);
 }
 ```
 
-### 4.2 collectAllData 메서드 업데이트
+## 8. 새로운 검사항목 추가 시 필수 작업
 
-새로운 리소스를 전체 데이터 수집에 포함시킵니다:
+### 8.1 Frontend 검사항목 정의 업데이트
 
-```javascript
-// backend/services/inspectors/ec2/collectors/ec2DataCollector.js
-async collectAllData() {
-  const [securityGroups, instances, newResources] = await Promise.all([
-    this.getSecurityGroups(),
-    this.getEC2Instances(),
-    this.getNewResources() // 새로 추가
-  ]);
-
-  return {
-    securityGroups,
-    instances,
-    newResources // 새로 추가
-  };
-}
-```
-
-## 5. 프론트엔드 연동
-
-### 5.1 검사 항목 정의 추가
+새로운 검사항목을 추가할 때는 반드시 `frontend/src/data/inspectionItems.js` 파일의 검사 내용도 함께 수정해야 합니다.
 
 ```javascript
-// frontend/src/data/inspectionItems.js
-// 해당 서비스의 categories > items 배열에 추가
+// inspectionItems.js에서 새 검사항목 추가 예시
 {
-  id: 'new-item',
-  name: '새 검사 항목',
-  shortDescription: '간단한 설명',
-  description: '상세한 설명',
+  id: 'new-inspection-item',
+  name: '새로운 검사항목 이름',
+  shortDescription: '실제 검사하는 구체적인 내용과 방법을 상세히 설명',
   severity: 'CRITICAL', // 또는 'WARN'
   enabled: true
 }
 ```
 
-## 6. 체크리스트
+**shortDescription 작성 가이드:**
+- 백엔드 Inspector가 실제로 수행하는 검사 내용을 구체적으로 설명
+- 검사 대상, 검사 방법, 판단 기준을 명확히 포함
+- 사용자가 검사 항목만 보고도 정확히 무엇을 검사하는지 이해할 수 있도록 작성
+- 예시: "보안그룹의 인바운드 규칙에서 SSH(22), RDP(3389) 등 6개 위험 포트가 인터넷(0.0.0.0/0)에 개방되어 있는지 검사. 단일 포트뿐만 아니라 포트 범위 내 위험한 포트 포함 여부도 탐지"
 
-- [ ] Checker 클래스 생성
-- [ ] Inspector에 checker 등록
-- [ ] 지원 검사 유형에 추가
-- [ ] 개별 검사 메서드 구현
-- [ ] 전체 검사에 통합
-- [ ] 데이터 수집기 확장 (필요시)
-- [ ] inspectionItems.js에 항목 정의 추가
-- [ ] 프론트엔드 연동
+**주의사항:**
+- Inspector의 검사항목 ID와 inspectionItems.js의 item.id가 정확히 일치해야 함
+- severity는 검사 결과의 심각도를 결정하므로 신중히 설정
+- shortDescription은 백엔드 검사 로직과 정확히 일치해야 함
 
-## 7. 주의사항
-
-1. **일관성 유지**: 기존 검사 항목과 동일한 패턴 사용
-2. **findings 초기화**: 개별 검사 메서드에서 `this.findings = []` 필수
-3. **에러 처리**: 모든 AWS API 호출에 에러 처리 추가
-4. **리소스 카운트**: `incrementResourceCount()` 호출
-5. **진행률 업데이트**: `updateProgress()` 호출
-6. **Finding 형식**: InspectionFinding 모델 사용 (4개 필드: resourceId, resourceType, issue, recommendation)
-7. **성능 고려**: 불필요한 API 호출 방지
-8. **riskLevel 제거**: InspectionFinding에서 riskLevel 필드 제거됨 (프론트엔드에서 severity 결정)
-
-## 8. 실제 데이터 수집기 메서드명
-
-각 서비스별로 구체적인 메서드명을 사용하세요:
+## 8.2 새로운 검사항목 추가 템플릿
 
 ```javascript
-// EC2
-await this.dataCollector.getSecurityGroups();
-await this.dataCollector.getEC2Instances();
+const BaseInspector = require('../../baseInspector');
+const { ServiceClient } = require('@aws-sdk/client-service');
+const ServiceDataCollector = require('../collectors/serviceDataCollector');
 
-// S3
-await this.dataCollector.getBuckets();
-
-// IAM
-await this.dataCollector.getUsers();
-await this.dataCollector.getRoles();
-await this.dataCollector.getPolicies();
-```
-
-## 9. 예제: VPC 엔드포인트 검사 추가
-
-```javascript
-// 1. Checker 생성
-class VpcEndpointChecker {
-  constructor(inspector) {
-    this.inspector = inspector;
+class NewInspector extends BaseInspector {
+  constructor() {
+    super('SERVICE_TYPE'); // EC2, S3, IAM 등
   }
 
-  async runAllChecks(vpcs) {
-    for (const vpc of vpcs) {
-      await this.checkVpcEndpoints(vpc);
+  // DataCollector 사용 시 필수 메서드
+  async retryableApiCall(apiCall, operationName, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await apiCall();
+      } catch (error) {
+        if (attempt === maxRetries) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      }
     }
   }
 
-  async checkVpcEndpoints(vpc) {
-    if (!vpc.VpcEndpoints || vpc.VpcEndpoints.length === 0) {
-      const finding = new InspectionFinding({
-        resourceId: vpc.VpcId,
-        resourceType: 'VPC',
-        issue: 'VPC 엔드포인트가 설정되지 않음',
-        recommendation: 'S3, DynamoDB 등 주요 서비스에 VPC 엔드포인트 설정 권장'
+  async performInspection(awsCredentials, inspectionConfig) {
+    try {
+      // 1. AWS 클라이언트 초기화
+      this.serviceClient = new ServiceClient({
+        region: awsCredentials.region || 'us-east-1',
+        credentials: {
+          accessKeyId: awsCredentials.accessKeyId,
+          secretAccessKey: awsCredentials.secretAccessKey,
+          sessionToken: awsCredentials.sessionToken
+        }
       });
-      this.inspector.addFinding(finding);
+
+      this.dataCollector = new ServiceDataCollector(this.serviceClient, this);
+
+      // 2. 직접 데이터 수집 (권장)
+      const resources = await this.dataCollector.getResources();
+      
+      if (!Array.isArray(resources)) {
+        this.addFinding('resources', 'ResourceType', '데이터 형식 오류', '데이터 구조 확인');
+        throw new Error('데이터 형식 오류');
+      }
+      
+      await this.checkResources(resources);
+    } catch (error) {
+      this.handleAWSError(error);
+      throw error;
+    }
+  }
+
+  async executeItemInspection(customerId, inspectionId, awsCredentials, inspectionConfig) {
+    const findings = await this.executeInspection(awsCredentials, inspectionConfig);
+    return [{
+      serviceType: this.serviceType,
+      itemId: inspectionConfig.targetItem || 'default',
+      findings: findings,
+      inspectionTime: Date.now(),
+      resourcesScanned: this.resourcesScanned
+    }];
+  }
+
+  async checkResources(resources) {
+    let hasFormatError = false;
+    const formatErrors = new Set();
+    
+    for (const resource of resources) {
+      this.incrementResourceCount();
+      
+      const validation = this.validateResourceFormat(resource);
+      if (!validation.valid) {
+        if (!hasFormatError) {
+          formatErrors.add(validation.error);
+          hasFormatError = true;
+        }
+        continue;
+      }
+      
+      await this.performResourceCheck(resource);
+    }
+    
+    if (hasFormatError) {
+      this.addFinding('format-error', 'System', 
+        `데이터 형식 오류: ${Array.from(formatErrors).join(', ')}`, 
+        '데이터 구조 확인');
+    }
+  }
+
+  validateResourceFormat(resource) {
+    if (!resource || typeof resource !== 'object') {
+      return { valid: false, error: '리소스가 객체가 아님' };
+    }
+    
+    const requiredFields = ['id', 'name']; // 실제 필드명으로 변경
+    const missingFields = requiredFields.filter(field => !resource[field]);
+    
+    if (missingFields.length > 0) {
+      return { valid: false, error: `필수 필드 누락: ${missingFields.join(', ')}` };
+    }
+    
+    return { valid: true };
+  }
+
+  async performResourceCheck(resource) {
+    // 실제 검사 로직 구현
+  }
+
+  handleAWSError(error) {
+    if (!error) return;
+    
+    switch (error.name) {
+      case 'UnauthorizedOperation':
+        this.addFinding('system', 'Permission', 'AWS 권한 부족', 'IAM 정책 확인');
+        break;
+      case 'ExpiredToken':
+        this.addFinding('system', 'Auth', '토큰 만료', '자격 증명 갱신');
+        break;
+      default:
+        this.recordError(error, { context: 'AWS API 호출' });
     }
   }
 }
 
-// 2. Inspector에 등록
-this.checkers = {
-  vpcEndpoint: new VpcEndpointChecker(this)
-};
-
-// 3. 검사 실행
-await this.checkers.vpcEndpoint.runAllChecks(data.vpcs);
+module.exports = NewInspector;
 ```
+
+## 9. 체크리스트
+
+### 백엔드 Inspector 구현
+- [ ] BaseInspector 상속
+- [ ] performInspection 구현
+- [ ] executeItemInspection 구현
+- [ ] retryableApiCall 구현 (DataCollector 사용 시)
+- [ ] 직접 데이터 수집 또는 collectAndValidate 활용
+- [ ] 도메인별 형식 검증 구현
+- [ ] AWS 에러 처리 구현
+- [ ] 성능 최적화 적용
+- [ ] 필수 메서드 호출 확인
+
+### 프론트엔드 검사항목 정의
+- [ ] inspectionItems.js에 검사항목 추가
+- [ ] shortDescription에 실제 검사 내용 구체적으로 작성
+- [ ] 백엔드 검사 로직과 설명 내용 일치 확인
+- [ ] severity 적절히 설정 (CRITICAL/WARN)
+
+## 9. 금지사항
+
+- ❌ 과도한 추상화 (Generic Validator, Generic Checker)
+- ❌ 다른 도메인 로직 재사용 시도
+- ❌ BaseInspector에 도메인별 로직 추가
+- ❌ 형식 검증 로직 공통화 시도
+
+## 10. 권장사항
+
+- ✅ 각 Inspector는 자신의 도메인에만 집중
+- ✅ 데이터 형식 검증은 각자 구현
+- ✅ 검사 로직은 도메인별로 완전 분리
+- ✅ BaseInspector는 공통 플로우만 관리
+- ✅ 실용적 설계 우선, 이론적 완벽함 지양

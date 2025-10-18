@@ -6,8 +6,8 @@
 
 const BaseInspector = require('./baseInspector');
 const EC2Inspector = require('./ec2/index');
-const IAMInspector = require('./iam/index');
 const S3Inspector = require('./s3/index');
+// const IAMInspector = require('./iam/index');  // TODO: 구현 필요
 
 /**
  * Inspector Registry
@@ -25,8 +25,8 @@ class InspectorRegistry {
   initializeRegistry() {
     // 기본 Inspector들을 여기에 등록
     this.register('EC2', EC2Inspector);
-    this.register('IAM', IAMInspector);
     this.register('S3', S3Inspector);
+    // this.register('IAM', IAMInspector);  // TODO: 구현 후 활성화
     // 향후 RDSInspector 등이 추가될 예정
   }
 

@@ -66,7 +66,12 @@ class InspectionFinding {
   static generateSummary(findings) {
     return {
       totalFindings: findings.length,
-      resourcesAffected: [...new Set(findings.map(f => f.resourceId))].length
+      resourcesAffected: [...new Set(findings.map(f => f.resourceId))].length,
+      criticalIssues: 0,
+      highRiskIssues: 0, 
+      mediumRiskIssues: 0,
+      lowRiskIssues: 0,
+      categories: []
     };
   }
 }

@@ -109,6 +109,22 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     setSelectedItems(newSelected);
   };
 
+  // 전체 검사항목 선택/해제
+  const handleSelectAll = () => {
+    if (!selectedService) return;
+    
+    const service = inspectionItems[selectedService];
+    const allItems = service.categories.flatMap(category => category.items);
+    const allSelected = allItems.every(item => selectedItems[item.id]);
+    
+    const newSelected = {};
+    allItems.forEach(item => {
+      newSelected[item.id] = !allSelected;
+    });
+    
+    setSelectedItems(newSelected);
+  };
+
   // 검사 항목의 최근 상태 가져오기 (새로운 모델 적용)
   const getItemStatus = (serviceType, itemId) => {
     const serviceStatuses = itemStatuses[serviceType] || {};
@@ -350,6 +366,19 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
                 placeholder="AWS Role ARN (예: arn:aws:iam::123456789012:role/YourRole)"
                 className="arn-field-compact"
               />
+              <button
+                className="select-all-btn-compact"
+                onClick={handleSelectAll}
+                disabled={isLoading}
+              >
+                {(() => {
+                  if (!selectedService) return '전체 선택';
+                  const service = inspectionItems[selectedService];
+                  const allItems = service.categories.flatMap(category => category.items);
+                  const allSelected = allItems.every(item => selectedItems[item.id]);
+                  return allSelected ? '전체 해제' : '전체 선택';
+                })()}
+              </button>
               <button
                 className="start-btn-compact"
                 onClick={handleStartInspection}

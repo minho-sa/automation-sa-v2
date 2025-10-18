@@ -3,7 +3,7 @@
  * EC2 관련 데이터 수집을 담당하는 모듈
  */
 
-const { DescribeInstancesCommand, DescribeSecurityGroupsCommand } = require('@aws-sdk/client-ec2');
+const { DescribeInstancesCommand, DescribeSecurityGroupsCommand, DescribeSnapshotsCommand, DescribeSubnetsCommand, DescribeReservedInstancesCommand } = require('@aws-sdk/client-ec2');
 
 class EC2DataCollector {
   constructor(ec2Client, inspector) {
@@ -40,7 +40,7 @@ class EC2DataCollector {
       return response.SecurityGroups || [];
     } catch (error) {
       this.inspector.recordError(error, { operation: 'getSecurityGroups' });
-      return [];
+      throw error;
     }
   }
 
@@ -67,7 +67,7 @@ class EC2DataCollector {
       return instances;
     } catch (error) {
       this.inspector.recordError(error, { operation: 'getEC2Instances' });
-      return [];
+      throw error;
     }
   }
 
@@ -128,6 +128,99 @@ class EC2DataCollector {
       instance.State?.Name !== 'terminated' && 
       instance.State?.Name !== 'terminating'
     );
+  }
+
+  /**
+   * EBS 스냅샷 목록 조회
+   */
+  async getSnapshots(ownerId = 'self') {
+    try {
+      const command = new DescribeSnapshotsCommand({
+        OwnerIds: [ownerId]
+      });
+      const response = await this.inspector.retryableApiCall(
+        () => this.ec2Client.send(command),
+        'DescribeSnapshots'
+      );
+
+      return response.Snapshots || [];
+    } catch (error) {
+      this.inspector.recordError(error, { operation: 'getSnapshots' });
+      throw error;
+    }
+  }
+
+  /**
+   * 특정 볼륨의 스냅샷 조회
+   */
+  async getSnapshotsForVolume(volumeId) {
+    try {
+      const command = new DescribeSnapshotsCommand({
+        OwnerIds: ['self'],
+        Filters: [
+          {
+            Name: 'volume-id',
+            Values: [volumeId]
+          }
+        ]
+      });
+      const response = await this.inspector.retryableApiCall(
+        () => this.ec2Client.send(command),
+        'DescribeSnapshots'
+      );
+
+      return response.Snapshots || [];
+    } catch (error) {
+      this.inspector.recordError(error, { 
+        operation: 'getSnapshotsForVolume',
+        volumeId 
+      });
+      return [];
+    }
+  }
+
+  /**
+   * 서브넷 정보 조회
+   */
+  async getSubnets(subnetIds = null) {
+    try {
+      const params = {};
+      if (subnetIds && subnetIds.length > 0) {
+        params.SubnetIds = subnetIds;
+      }
+      
+      const command = new DescribeSubnetsCommand(params);
+      const response = await this.inspector.retryableApiCall(
+        () => this.ec2Client.send(command),
+        'DescribeSubnets'
+      );
+
+      return response.Subnets || [];
+    } catch (error) {
+      this.inspector.recordError(error, { 
+        operation: 'getSubnets',
+        subnetIds 
+      });
+      return [];
+    }
+  }
+
+  /**
+   * 예약 인스턴스 목록 조회
+   */
+  async getReservedInstances() {
+    try {
+      const command = new DescribeReservedInstancesCommand({});
+      const response = await this.inspector.retryableApiCall(
+        () => this.ec2Client.send(command),
+        'DescribeReservedInstances'
+      );
+
+      return response.ReservedInstances || [];
+    } catch (error) {
+      this.inspector.recordError(error, { operation: 'getReservedInstances' });
+      throw error;
+    }
   }
 
 
