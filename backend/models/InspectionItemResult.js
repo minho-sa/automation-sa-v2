@@ -100,20 +100,17 @@ module.exports = {
 
     /**
      * HISTORY 아이템 키 생성
-     * @param {string} serviceType - 서비스 타입
-     * @param {string} itemId - 항목 ID
      * @param {number} timestamp - 검사 시간
+     * @param {string} serviceType - 서비스 타입
      * @param {string} inspectionId - 검사 ID
-     * @param {string} region - AWS 리전
      * @returns {string} HISTORY 아이템 키
      */
-    createHistoryKey(serviceType, itemId, timestamp, inspectionId, region = 'us-east-1') {
-      const reversedTimestamp = (9999999999999 - timestamp).toString().padStart(13, '0');
-      return `HISTORY#${serviceType}#${region}#${reversedTimestamp}#${itemId}#${inspectionId}`;
+    createHistoryKey(timestamp, serviceType, inspectionId) {
+      return `HISTORY#${timestamp}#${serviceType}#${inspectionId}`;
     },
 
     /**
-     * itemKey에서 정보 추출 (새로운 구조 지원)
+     * itemKey에서 정보 추출 (간소화된 구조)
      * @param {string} itemKey - 아이템 키
      * @returns {Object} 파싱된 정보
      */
@@ -129,15 +126,11 @@ module.exports = {
           itemId: parts[3]
         };
       } else if (recordType === 'HISTORY') {
-        const reversedTimestamp = parseInt(parts[3]);
-        const originalTimestamp = 9999999999999 - reversedTimestamp;
         return {
           recordType: 'HISTORY',
-          serviceType: parts[1],
-          region: parts[2],
-          timestamp: originalTimestamp,
-          itemId: parts[4],
-          inspectionId: parts[5]
+          timestamp: parseInt(parts[1]),
+          serviceType: parts[2],
+          inspectionId: parts[3]
         };
       }
 

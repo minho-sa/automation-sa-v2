@@ -76,7 +76,10 @@ const InspectionHistory = () => {
         // 원본 데이터 보존 (상세보기에서 사용)
         originalItem: item,
         findings: item.findings || [],
-        recommendations: item.recommendations || []
+        recommendations: item.recommendations || [],
+        
+        // 정렬용 실제 검사 시간 보존
+        actualInspectionTime: item.inspectionTime
       };
     });
   };
@@ -118,6 +121,7 @@ const InspectionHistory = () => {
         newData = enrichItemData(newData);
 
         const finalData = loadMore ? [...historyData, ...newData] : newData;
+        
         setHistoryData(finalData);
         setPagination({
           hasMore: result.data.hasMore || false,
@@ -421,16 +425,11 @@ const InspectionHistory = () => {
                     </div>
                   </div>
 
-                  {/* 상태 */}
-                  <div className="row-status">
-                    <span className="status-icon-mini">
-                      {getStatusIcon(normalizeStatus(item.status))}
-                    </span>
-                    <span
-                      className="status-text-mini"
-                      style={{ color: getStatusColor(normalizeStatus(item.status)) }}
-                    >
-                      {getStatusText(normalizeStatus(item.status))}
+                  {/* 리전 */}
+                  <div className="row-region">
+                    <span className="region-icon">🌍</span>
+                    <span className="region-text">
+                      {item.originalItem?.region || item.region || 'us-east-1'}
                     </span>
                   </div>
 

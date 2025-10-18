@@ -22,9 +22,11 @@ class PublicAccessInspector extends BaseInspector {
     try {
       const region = inspectionConfig.region || awsCredentials.region || 'us-east-1';
       this.region = region;
+      this.awsCredentials = awsCredentials;
       
+      // S3는 글로벌 서비스이므로 us-east-1로 초기 클라이언트 생성
       this.s3Client = new S3Client({
-        region: region,
+        region: 'us-east-1',
         credentials: {
           accessKeyId: awsCredentials.accessKeyId,
           secretAccessKey: awsCredentials.secretAccessKey,
@@ -102,13 +104,27 @@ class PublicAccessInspector extends BaseInspector {
     const bucketName = bucket.Name;
     
     try {
-      const publicAccessBlock = await this.dataCollector.getPublicAccessBlock(bucketName);
+      // 버킷의 실제 리전 확인
+      const bucketRegion = await this.dataCollector.getBucketLocation(bucketName);
+      
+      // 버킷 리전에 맞는 클라이언트 생성
+      const bucketClient = new S3Client({
+        region: bucketRegion,
+        credentials: {
+          accessKeyId: this.awsCredentials.accessKeyId,
+          secretAccessKey: this.awsCredentials.secretAccessKey,
+          sessionToken: this.awsCredentials.sessionToken
+        }
+      });
+      
+      const bucketCollector = new S3DataCollector(bucketClient, this);
+      const publicAccessBlock = await bucketCollector.getPublicAccessBlock(bucketName);
       
       if (!publicAccessBlock) {
         this.addFinding(
           bucketName,
           'S3Bucket',
-          '퍼블릭 액세스 차단 설정이 구성되지 않음',
+          `퍼블릭 액세스 차단 설정이 구성되지 않음 (리전: ${bucketRegion})`,
           '퍼블릭 액세스 차단 설정을 활성화하여 보안 강화'
         );
         return;
@@ -136,12 +152,11 @@ class PublicAccessInspector extends BaseInspector {
         this.addFinding(
           bucketName,
           'S3Bucket',
-          `퍼블릭 액세스 차단 설정 미흡: ${issues.join(', ')}`,
+          `퍼블릭 액세스 차단 설정 미흡 (리전: ${bucketRegion}): ${issues.join(', ')}`,
           '모든 퍼블릭 액세스 차단 옵션을 활성화하여 보안 강화'
         );
       }
     } catch (error) {
-      // 에러는 로그만 기록하고 다음 버킷으로 진행
       this.recordError(error, { context: `버킷 ${bucketName} 퍼블릭 액세스 검사` });
     }
   }

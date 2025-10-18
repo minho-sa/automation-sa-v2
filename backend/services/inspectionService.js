@@ -68,7 +68,13 @@ class InspectionService {
   async startInspection(customerId, serviceType, assumeRoleArn, inspectionConfig = {}) {
     const batchId = uuidv4();
     const selectedItems = inspectionConfig.selectedItems || [];
-    const region = inspectionConfig.region || 'us-east-1';
+    
+    // 글로벌 서비스 정의
+    const globalServices = ['S3', 'IAM', 'CLOUDFRONT'];
+    const isGlobalService = globalServices.includes(serviceType.toUpperCase());
+    
+    // 글로벌 서비스는 리전 정보 무시, 리전별 서비스만 리전 사용
+    const region = isGlobalService ? 'global' : (inspectionConfig.region || 'us-east-1');
 
     try {
       const inspectionJobs = [];
@@ -76,7 +82,8 @@ class InspectionService {
       this.logger.info('Processing inspection request', {
         customerId,
         serviceType,
-        region,
+        region: isGlobalService ? 'global' : region,
+        isGlobalService,
         selectedItemsCount: selectedItems.length,
         selectedItems: selectedItems
       });
@@ -130,13 +137,14 @@ class InspectionService {
       }
 
       // 초기 배치 상태 전송 (한 번만)
+      const regionDisplay = isGlobalService ? '글로벌 서비스' : region;
       webSocketService.broadcastProgressUpdate(batchId, {
         status: 'STARTING',
         progress: {
           percentage: 0,
           completedItems: 0,
           totalItems: inspectionJobs.length,
-          currentStep: `Starting batch inspection in ${region} (${inspectionJobs.length} items)`,
+          currentStep: `Starting batch inspection for ${regionDisplay} (${inspectionJobs.length} items)`,
           estimatedTimeRemaining: null
         },
         batchInfo: {
@@ -145,7 +153,7 @@ class InspectionService {
           completedInspections: 0,
           remainingInspections: inspectionJobs.length
         },
-        region
+        region: regionDisplay
       });
 
       // 비동기로 각 검사 실행
@@ -161,7 +169,8 @@ class InspectionService {
             targetItemId: job.itemId,
             batchId,
             isFirstInBatch: inspectionJobs.indexOf(job) === 0,
-            firstInspectionId: inspectionJobs[0]?.inspectionId
+            firstInspectionId: inspectionJobs[0]?.inspectionId,
+            isGlobalService
           }
         ).catch(error => {
           this.logger.error('Async item inspection execution failed', {
@@ -269,16 +278,22 @@ class InspectionService {
         throw new Error(`Inspector not found for service type: ${serviceType}`);
       }
 
-      // 3. 검사 수행
+      // 3. 검사 수행 (글로벌 서비스는 리전 정보 제외)
+      const inspectionParams = {
+        ...inspectionConfig,
+        targetItem: inspectionConfig.targetItemId
+      };
+      
+      // 글로벌 서비스가 아닐 때만 리전 정보 추가
+      if (!inspectionConfig.isGlobalService) {
+        inspectionParams.region = inspectionConfig.region || 'us-east-1';
+      }
+      
       const itemResults = await inspector.executeItemInspection(
         customerId,
         inspectionId,
         awsCredentials,
-        {
-          ...inspectionConfig,
-          targetItem: inspectionConfig.targetItemId,
-          region: inspectionConfig.region || 'us-east-1'
-        }
+        inspectionParams
       );
 
 
@@ -318,6 +333,7 @@ class InspectionService {
       // 배치 진행률 업데이트 (통합된 단일 메시지)
       const batchId = inspectionConfig.batchId || inspectionId;
       const batchProgress = this.calculateBatchProgress(batchId);
+      const regionDisplay = inspectionConfig.isGlobalService ? '글로벌' : (inspectionConfig.region || 'us-east-1');
 
       webSocketService.broadcastProgressUpdate(batchId, {
         status: 'IN_PROGRESS',
@@ -325,7 +341,7 @@ class InspectionService {
           percentage: batchProgress.percentage,
           completedItems: batchProgress.completedItems,
           totalItems: batchProgress.totalItems,
-          currentStep: `Completed ${inspectionConfig.targetItemId} in ${inspectionConfig.region || 'us-east-1'} (${batchProgress.completedItems}/${batchProgress.totalItems})`,
+          currentStep: `Completed ${inspectionConfig.targetItemId} in ${regionDisplay} (${batchProgress.completedItems}/${batchProgress.totalItems})`,
           estimatedTimeRemaining: batchProgress.estimatedTimeRemaining
         },
         completedItem: {
@@ -347,7 +363,7 @@ class InspectionService {
         inspectionId,
         customerId,
         serviceType,
-        region: inspectionConfig.region || 'us-east-1',
+        region: inspectionConfig.isGlobalService ? 'global' : (inspectionConfig.region || 'us-east-1'),
         itemId: inspectionConfig.targetItemId,
         error: error.message,
         stack: error.stack

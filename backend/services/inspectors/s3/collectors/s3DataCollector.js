@@ -1,4 +1,5 @@
 const { ListBucketsCommand, GetBucketLocationCommand, GetPublicAccessBlockCommand } = require('@aws-sdk/client-s3');
+const { S3Client } = require('@aws-sdk/client-s3');
 
 class S3DataCollector {
   constructor(s3Client, inspector) {
@@ -39,10 +40,7 @@ class S3DataCollector {
         if (error.name === 'NoSuchPublicAccessBlockConfiguration') {
           return null;
         }
-        if (error.name === 'PermanentRedirect') {
-          // 리전 리다이렉트 에러는 null 반환하여 건너뛰기
-          return null;
-        }
+        // PermanentRedirect 에러 제거 - 이제 올바른 리전 클라이언트를 사용하므로 발생하지 않음
         throw error;
       }
     }, 'GetPublicAccessBlock');

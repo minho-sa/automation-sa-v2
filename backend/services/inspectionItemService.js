@@ -35,13 +35,11 @@ class InspectionItemService {
       // 모델 헬퍼 함수 사용
       const { InspectionItemResult } = require('../models');
 
-      // 1. 히스토리용 레코드 저장 (검사 ID 포함, 시간순 정렬)
+      // 1. 히스토리용 레코드 저장 (간소화된 키 구조)
       const historyKey = InspectionItemResult.helpers.createHistoryKey(
-        itemResult.serviceType,
-        itemResult.itemId,
         now,
-        inspectionId,
-        itemResult.region || 'us-east-1'
+        itemResult.serviceType,
+        inspectionId
       );
 
       const historyItem = {

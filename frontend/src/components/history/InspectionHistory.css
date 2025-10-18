@@ -2564,20 +2564,21 @@ ilter-mini,
   font-weight: var(--font-medium);
 }
 
-.row-status {
+.row-region {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   justify-content: center;
 }
 
-.status-icon-mini {
+.region-icon {
   font-size: var(--text-lg);
 }
 
-.status-text-mini {
+.region-text {
   font-size: 12px;
   font-weight: 500;
+  color: #6b7280;
   transition: color 0.2s ease;
 }
 

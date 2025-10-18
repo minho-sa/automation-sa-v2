@@ -5,6 +5,14 @@ import { inspectionService } from '../../services';
 import RegionSelector from '../common/RegionSelector';
 import './ServiceInspectionSelector.css';
 
+// 글로벌 서비스 정의
+const GLOBAL_SERVICES = ['S3', 'IAM', 'CLOUDFRONT'];
+
+// 서비스가 글로벌 서비스인지 확인
+const isGlobalService = (serviceType) => {
+  return GLOBAL_SERVICES.includes(serviceType?.toUpperCase());
+};
+
 const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
   const [selectedService, setSelectedService] = useState(null);
   const [selectedItems, setSelectedItems] = useState({});
@@ -68,14 +76,15 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     await loadServiceItemStatuses(serviceId, selectedRegion);
   };
 
-  // 리전 변경 시 데이터 새로고침
+  // 리전 변경 시 데이터 새로고침 (리전별 서비스만)
   const handleRegionChange = async (newRegion) => {
     const oldRegion = selectedRegion;
     console.log(`🌍 [ServiceInspectionSelector] Region change: ${oldRegion} → ${newRegion}`);
     
     setSelectedRegion(newRegion);
     
-    if (selectedService) {
+    // 글로벌 서비스는 리전 변경 시 데이터 새로고침 안함
+    if (selectedService && !isGlobalService(selectedService)) {
       console.log(`🔄 [ServiceInspectionSelector] Force reload ${selectedService} for ${newRegion}`);
       
       setItemStatuses({});
@@ -101,32 +110,32 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     }
   };
 
-  // 특정 서비스의 검사 항목 상태 로드 (리전 포함)
+  // 특정 서비스의 검사 항목 상태 로드
   const loadServiceItemStatuses = async (serviceId, region = null) => {
     try {
       setLoadingStatuses(true);
       
-      const targetRegion = region || selectedRegion;
-      console.log(`📡 [ServiceInspectionSelector] Loading ${serviceId} status for region: ${targetRegion}`);
+      // 글로벌 서비스는 리전 정보 없이 로드
+      const targetRegion = isGlobalService(serviceId) ? null : (region || selectedRegion);
+      console.log(`📡 [ServiceInspectionSelector] Loading ${serviceId} status${targetRegion ? ` for region: ${targetRegion}` : ' (global service)'}`);
       
       const result = await inspectionService.getAllItemStatus(serviceId, targetRegion);
       
       if (result.success) {
         console.log(`✅ [ServiceInspectionSelector] Loaded ${serviceId} data:`, {
-          region: targetRegion,
+          region: targetRegion || 'global',
           services: Object.keys(result.data.services),
           itemCount: Object.values(result.data.services).reduce((sum, service) => sum + Object.keys(service).length, 0)
         });
         
-        // 리전별 데이터로 완전 교체 (기존 다른 리전 데이터 제거)
         setItemStatuses(result.data.services);
       } else {
         console.error('Failed to load service item statuses:', result.error);
-        setItemStatuses({}); // 실패 시 빈 상태
+        setItemStatuses({});
       }
     } catch (error) {
       console.error('Error loading service item statuses:', error);
-      setItemStatuses({}); // 에러 시 빈 상태
+      setItemStatuses({});
     } finally {
       setLoadingStatuses(false);
     }
@@ -269,11 +278,10 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
       return;
     }
 
-    // 검사 시작 시 콜백 함수 추가 (검사 완료 후 상태 새로고침용)
-    onStartInspection({
+    // 글로벌 서비스는 리전 정보를 넘기지 않음
+    const inspectionRequest = {
       serviceType: selectedService,
       assumeRoleArn,
-      region: selectedRegion,
       inspectionConfig: {
         selectedItems: selectedItemIds
       },
@@ -283,7 +291,14 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
           loadAllItemStatuses();
         }, 2000); // 2초 후 새로고침 (DB 저장 시간 고려)
       }
-    });
+    };
+
+    // 리전별 서비스만 리전 정보 추가
+    if (!isGlobalService(selectedService)) {
+      inspectionRequest.region = selectedRegion;
+    }
+
+    onStartInspection(inspectionRequest);
   };
 
   return (
@@ -396,9 +411,16 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
                   <span className="selected-count">
                     {Object.values(selectedItems).filter(Boolean).length}개 선택됨
                   </span>
-                  <span className="region-info">
-                    📍 {selectedRegion}
-                  </span>
+                  {!isGlobalService(selectedService) && (
+                    <span className="region-info">
+                      📍 {selectedRegion}
+                    </span>
+                  )}
+                  {isGlobalService(selectedService) && (
+                    <span className="global-service-badge">
+                      🌍 글로벌 서비스
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -406,14 +428,26 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
 
           {/* 간소화된 설정 패널 */}
           <div className="config-panel-compact">
-            <div className="config-row">
-              <RegionSelector
-                selectedRegion={selectedRegion}
-                onRegionChange={handleRegionChange}
-                disabled={isLoading}
-                className="region-selector--inline"
-              />
-            </div>
+            {/* 글로벌 서비스가 아닐 때만 리전 선택 표시 */}
+            {!isGlobalService(selectedService) && (
+              <div className="config-row">
+                <RegionSelector
+                  selectedRegion={selectedRegion}
+                  onRegionChange={handleRegionChange}
+                  disabled={isLoading}
+                  className="region-selector--inline"
+                />
+              </div>
+            )}
+            {/* 글로벌 서비스일 때 안내 메시지 */}
+            {isGlobalService(selectedService) && (
+              <div className="global-service-notice">
+                <span className="global-icon">🌍</span>
+                <span className="global-text">
+                  {selectedService}는 글로벌 서비스로 모든 리전의 리소스를 통합 검사합니다
+                </span>
+              </div>
+            )}
             <div className="arn-input-compact">
               <input
                 id="roleArn"
@@ -523,7 +557,9 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
                                 </span>
                                 {statusDisplay.time && (
                                   <span className="last-check-time">
-                                    마지막 검사: {statusDisplay.time} ({selectedRegion})
+                                    마지막 검사: {statusDisplay.time} 
+                                    {!isGlobalService(selectedService) && `(${selectedRegion})`}
+                                    {isGlobalService(selectedService) && '(글로벌)'}
                                   </span>
                                 )}
                                 {loadingStatuses && (

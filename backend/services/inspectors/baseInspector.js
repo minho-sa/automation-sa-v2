@@ -22,7 +22,16 @@ class BaseInspector {
     this.startTime = Date.now();
     this.findings = [];
     this.resourcesScanned = 0;
-    this.region = inspectionConfig.region || awsCredentials.region || 'us-east-1';
+    
+    // 글로벌 서비스 여부 확인
+    const isGlobal = this.isGlobalService();
+    
+    // 글로벌 서비스는 'global'로, 리전별 서비스는 실제 리전으로 설정
+    if (isGlobal) {
+      this.region = 'global';
+    } else {
+      this.region = inspectionConfig.region || awsCredentials.region || 'us-east-1';
+    }
 
     try {
       await this.preInspectionValidation(awsCredentials, inspectionConfig);
@@ -255,6 +264,15 @@ class BaseInspector {
       resourcesScanned: this.resourcesScanned,
       region: this.region
     }] : [];
+  }
+
+  /**
+   * 글로벌 서비스 여부 확인 (하위 클래스에서 오버라이드 가능)
+   * @returns {boolean}
+   */
+  isGlobalService() {
+    const globalServices = ['S3', 'IAM', 'CLOUDFRONT'];
+    return globalServices.includes(this.serviceType.toUpperCase());
   }
 
   /**
