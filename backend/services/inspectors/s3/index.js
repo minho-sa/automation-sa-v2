@@ -1,5 +1,6 @@
 const BaseInspector = require('../baseInspector');
 const PublicAccessInspector = require('./checks/publicAccessInspector');
+const EncryptionInspector = require('./checks/encryptionInspector');
 
 class S3Inspector extends BaseInspector {
   constructor() {
@@ -28,12 +29,21 @@ class S3Inspector extends BaseInspector {
       return;
     }
     
+    if (targetItem === 'encryption-settings') {
+      const inspector = new EncryptionInspector();
+      await inspector.executeInspection(awsCredentials, inspectionConfig);
+      this.findings.push(...inspector.findings);
+      this.incrementResourceCount(inspector.resourcesScanned);
+      return;
+    }
+    
     this.handleUnknownInspectionItem(targetItem);
   }
 
   async performAllInspections(awsCredentials, inspectionConfig) {
     const inspectors = [
-      new PublicAccessInspector()
+      new PublicAccessInspector(),
+      new EncryptionInspector()
     ];
     
     for (const inspector of inspectors) {

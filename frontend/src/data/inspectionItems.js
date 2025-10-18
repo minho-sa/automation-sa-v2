@@ -90,6 +90,13 @@ export const inspectionItems = {
             shortDescription: 'S3 버킷의 퍼블릭 액세스 차단 설정을 검사하여 보안 위험을 식별. BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, RestrictPublicBuckets 4가지 설정이 모두 활성화되어 있는지 확인',
             severity: 'CRITICAL',
             enabled: true
+          },
+          {
+            id: 'encryption-settings',
+            name: '암호화 설정',
+            shortDescription: 'S3 버킷의 기본 암호화 설정을 검사하여 데이터 보호 수준을 평가합니다. 암호화가 설정되지 않은 버킷을 식별하고 KMS 암호화 사용을 권장합니다',
+            severity: 'CRITICAL',
+            enabled: true
           }
         ]
       }
