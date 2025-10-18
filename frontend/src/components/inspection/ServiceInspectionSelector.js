@@ -47,11 +47,24 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     };
   }, []);
 
-  // 초기 로드 시에는 상태를 로드하지 않음 (서비스 선택 시에만 로드)
+  // 모든 검사 항목 상태 로드 (서비스별 필터링 제거)
   const loadAllItemStatuses = async () => {
-    // 초기에는 빈 상태로 시작
-    setItemStatuses({});
-    setLoadingStatuses(false);
+    try {
+      setLoadingStatuses(true);
+      const result = await inspectionService.getAllItemStatus();
+      
+      if (result.success) {
+        setItemStatuses(result.data.services);
+      } else {
+        console.error('Failed to load all item statuses:', result.error);
+        setItemStatuses({});
+      }
+    } catch (error) {
+      console.error('Error loading all item statuses:', error);
+      setItemStatuses({});
+    } finally {
+      setLoadingStatuses(false);
+    }
   };
 
   // 서비스 선택 핸들러
@@ -72,74 +85,22 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     
     setSelectedItems(defaultSelected);
 
-    // 선택된 서비스의 최신 상태만 로드
-    await loadServiceItemStatuses(serviceId, selectedRegion);
+    // 모든 서비스의 상태를 로드 (서비스별 필터링 제거)
+    await loadAllItemStatuses();
   };
 
-  // 리전 변경 시 데이터 새로고침 (리전별 서비스만)
+  // 리전 변경 시 데이터 새로고침 (모든 서비스 데이터 다시 로드)
   const handleRegionChange = async (newRegion) => {
     const oldRegion = selectedRegion;
     console.log(`🌍 [ServiceInspectionSelector] Region change: ${oldRegion} → ${newRegion}`);
     
     setSelectedRegion(newRegion);
     
-    // 글로벌 서비스는 리전 변경 시 데이터 새로고침 안함
-    if (selectedService && !isGlobalService(selectedService)) {
-      console.log(`🔄 [ServiceInspectionSelector] Force reload ${selectedService} for ${newRegion}`);
-      
-      setItemStatuses({});
-      setLoadingStatuses(true);
-      
-      try {
-        console.log(`📡 [ServiceInspectionSelector] Direct API call: ${selectedService}, ${newRegion}`);
-        const result = await inspectionService.getAllItemStatus(selectedService, newRegion);
-        
-        if (result.success) {
-          console.log(`✅ [ServiceInspectionSelector] Success:`, result.data);
-          setItemStatuses(result.data.services);
-        } else {
-          console.error(`❌ [ServiceInspectionSelector] Failed:`, result.error);
-          setItemStatuses({});
-        }
-      } catch (error) {
-        console.error(`🚨 [ServiceInspectionSelector] Error:`, error);
-        setItemStatuses({});
-      } finally {
-        setLoadingStatuses(false);
-      }
-    }
+    // 모든 서비스 데이터 다시 로드
+    await loadAllItemStatuses();
   };
 
-  // 특정 서비스의 검사 항목 상태 로드
-  const loadServiceItemStatuses = async (serviceId, region = null) => {
-    try {
-      setLoadingStatuses(true);
-      
-      // 글로벌 서비스는 리전 정보 없이 로드
-      const targetRegion = isGlobalService(serviceId) ? null : (region || selectedRegion);
-      console.log(`📡 [ServiceInspectionSelector] Loading ${serviceId} status${targetRegion ? ` for region: ${targetRegion}` : ' (global service)'}`);
-      
-      const result = await inspectionService.getAllItemStatus(serviceId, targetRegion);
-      
-      if (result.success) {
-        console.log(`✅ [ServiceInspectionSelector] Loaded ${serviceId} data:`, {
-          region: targetRegion || 'global',
-          services: Object.keys(result.data.services),
-          itemCount: Object.values(result.data.services).reduce((sum, service) => sum + Object.keys(service).length, 0)
-        });
-        
-        setItemStatuses(result.data.services);
-      } else {
-        console.error('Failed to load service item statuses:', result.error);
-        setItemStatuses({});
-      }
-    } catch (error) {
-      console.error('Error loading service item statuses:', error);
-      setItemStatuses({});
-    } finally {
-      setLoadingStatuses(false);
-    }
-  };
+
 
   // 검사 항목 선택/해제 핸들러
   const handleItemToggle = (itemId) => {

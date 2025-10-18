@@ -109,29 +109,25 @@ const startInspection = async (req, res) => {
 
 
 /**
- * 검사 항목 상태 조회 (서비스별 필터링 지원)
- * GET /api/inspections/items/status?serviceType=EC2
+ * 검사 항목 상태 조회
+ * GET /api/inspections/items/status
  * 
- * 역할: 모든 서비스 또는 특정 서비스의 검사 항목 상태를 조회
- * - 쿼리 파라미터로 서비스 필터링 (선택사항)
+ * 역할: 모든 서비스의 검사 항목 상태를 조회
  * - 캐시 무효화 헤더 설정 (실시간 데이터)
  * - Trusted Advisor 스타일 대시보드용
  * - 각 검사 항목의 최신 상태와 findings 정보 제공
  * 
- * 사용처: ServiceInspectionSelector에서 서비스 선택 시 검사 항목 상태 표시
+ * 사용처: ServiceInspectionSelector에서 검사 항목 상태 표시
  */
 const getAllItemStatus = async (req, res) => {
     try {
         const customerId = req.user.userId;
-        const { serviceType, region } = req.query;
 
-        console.log(`🔍 [InspectionController] Getting item status for customer ${customerId}, service: ${serviceType || 'ALL'}, region: ${region || 'ALL'}`);
+        console.log(`🔍 [InspectionController] Getting item status for customer ${customerId}`);
 
         // 단일 테이블 구조에서 최신 검사 결과 조회
         const result = await historyService.getInspectionHistory(customerId, {
-            historyMode: 'latest',
-            serviceType: serviceType,  // 서비스 타입 필터 추가
-            region: region  // 리전 필터 추가
+            historyMode: 'latest'
         });
 
         console.log(`🔍 [InspectionController] History service result:`, {
@@ -190,21 +186,16 @@ const getItemInspectionHistory = async (req, res) => {
     try {
         const customerId = req.user.userId;
         const {
-            serviceType,
-            region,
             historyMode = 'history',
             lastEvaluatedKey
         } = req.query;
 
         console.log(`🔍 [InspectionController] Paginated history request:`, {
-            service: serviceType || 'ALL',
             hasLastKey: !!lastEvaluatedKey
         });
 
         // 항목별 검사 이력 조회 (페이지네이션 지원)
         const result = await historyService.getInspectionHistory(customerId, {
-            serviceType,
-            region,
             historyMode,
             lastEvaluatedKey
         });

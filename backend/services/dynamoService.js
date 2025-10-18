@@ -303,37 +303,18 @@ class DynamoService {
   }
 
   async getInspectionHistory(customerId, options = {}) {
-    const { historyMode = 'history', serviceType, region, lastEvaluatedKey, limit = 10 } = options;
+    const { historyMode = 'history', lastEvaluatedKey, limit = 10 } = options;
     
-    console.log(`📊 [DynamoService] Query params:`, { customerId, historyMode, serviceType, region });
+    console.log(`📊 [DynamoService] Query params:`, { customerId, historyMode });
     
     let keyConditionExpression = 'customerId = :customerId';
     let expressionAttributeValues = { ':customerId': customerId };
     
-    // 리전별 최적화된 필터링
-    if (serviceType && serviceType !== 'all' && region) {
-      // 서비스+리전: LATEST#EC2#us-east-1# 또는 HISTORY#EC2#us-east-1#
-      const keyPrefix = historyMode === 'latest' 
-        ? `LATEST#${serviceType}#${region}#`
-        : `HISTORY#${serviceType}#${region}#`;
-      keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
-      expressionAttributeValues[':prefix'] = keyPrefix;
-      console.log(`🎯 [DynamoService] Using region-specific prefix: ${keyPrefix}`);
-    } else if (serviceType && serviceType !== 'all') {
-      // 서비스만: LATEST#EC2# 또는 HISTORY#EC2#
-      const keyPrefix = historyMode === 'latest' 
-        ? `LATEST#${serviceType}#`
-        : `HISTORY#${serviceType}#`;
-      keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
-      expressionAttributeValues[':prefix'] = keyPrefix;
-      console.log(`🛠️ [DynamoService] Using service prefix: ${keyPrefix}`);
-    } else {
-      // 전체: LATEST# 또는 HISTORY#
-      const keyPrefix = historyMode === 'latest' ? 'LATEST#' : 'HISTORY#';
-      keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
-      expressionAttributeValues[':prefix'] = keyPrefix;
-      console.log(`🌍 [DynamoService] Using global prefix: ${keyPrefix}`);
-    }
+    // 전체 검사 기록 조회 (서비스별 필터링 제거)
+    const keyPrefix = historyMode === 'latest' ? 'LATEST#' : 'HISTORY#';
+    keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
+    expressionAttributeValues[':prefix'] = keyPrefix;
+    console.log(`🌍 [DynamoService] Using global prefix: ${keyPrefix}`);
 
     const params = {
       TableName: this.tables.INSPECTION_ITEMS,

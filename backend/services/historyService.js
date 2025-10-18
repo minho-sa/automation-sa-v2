@@ -37,8 +37,6 @@ class HistoryService {
   async getInspectionHistory(customerId, options = {}) {
     try {
       const {
-        serviceType,
-        region,
         historyMode = 'history',
         lastEvaluatedKey,
         aggregated = false
@@ -52,26 +50,9 @@ class HistoryService {
         ':customerId': customerId
       };
 
-      // 리전별 최적화된 쿼리
-      if (serviceType && serviceType !== 'all' && region) {
-        // 서비스+리전 조합: LATEST#EC2#us-east-1# 또는 HISTORY#EC2#us-east-1#
-        const keyPrefix = historyMode === 'latest' 
-          ? `LATEST#${serviceType}#${region}#`
-          : `HISTORY#${serviceType}#${region}#`;
-        keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
-        expressionAttributeValues[':itemKeyPrefix'] = keyPrefix;
-      } else if (serviceType && serviceType !== 'all') {
-        // 서비스만: LATEST#EC2# 또는 HISTORY#EC2#
-        const keyPrefix = historyMode === 'latest' 
-          ? `LATEST#${serviceType}#`
-          : `HISTORY#${serviceType}#`;
-        keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
-        expressionAttributeValues[':itemKeyPrefix'] = keyPrefix;
-      } else {
-        // 전체: LATEST# 또는 HISTORY#
-        keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
-        expressionAttributeValues[':itemKeyPrefix'] = itemKeyPrefix;
-      }
+      // 전체 검사 기록 조회 (서비스별 필터링 제거)
+      keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
+      expressionAttributeValues[':itemKeyPrefix'] = itemKeyPrefix;
 
       const params = {
         TableName: this.tableName,
@@ -97,12 +78,10 @@ class HistoryService {
         params.ConsistentRead = true;
       }
 
-      console.log(`🔍 [HistoryService] Calling dynamoService with region: ${region}`);
+      console.log(`🔍 [HistoryService] Calling dynamoService`);
       
       const result = await this.dynamoService.getInspectionHistory(customerId, {
         historyMode,
-        serviceType,
-        region,
         lastEvaluatedKey,
         limit
       });

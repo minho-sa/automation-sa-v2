@@ -17,9 +17,8 @@ const InspectionHistory = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedInspection, setSelectedInspection] = useState(null);
-  // 단순화된 필터 (서비스 타입만)
+  // 필터 제거 - 모든 검사 기록 표시
   const [filters, setFilters] = useState({
-    serviceType: 'all',
     historyMode: 'history' // 'latest' 또는 'history'
   });
   const [pagination, setPagination] = useState({
@@ -96,7 +95,6 @@ const InspectionHistory = () => {
 
       const params = {
         // limit 파라미터 제거 - 백엔드가 적절한 양을 결정
-        ...(filters.serviceType !== 'all' && { serviceType: filters.serviceType }),
         historyMode: filters.historyMode
       };
 
@@ -167,17 +165,7 @@ const InspectionHistory = () => {
 
 
 
-  // 필터 변경 핸들러 (페이지네이션 리셋)
-  const handleFilterChange = (filterType, value) => {
-    console.log('🔄 [InspectionHistory] Filter changed:', filterType, value);
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: value
-    }));
-    // 필터 변경 시 페이지네이션 리셋
-    setPagination({ hasMore: false, lastEvaluatedKey: null, loading: false });
-    setHistoryData([]); // 기존 데이터 클리어
-  };
+
 
 
 
@@ -334,22 +322,8 @@ const InspectionHistory = () => {
         </div>
       </div>
 
-      {/* 단순화된 필터 */}
+      {/* 간단한 컨트롤 */}
       <div className="filters-compact">
-        <select
-          value={filters.serviceType}
-          onChange={(e) => handleFilterChange('serviceType', e.target.value)}
-          className="filter-mini"
-        >
-          <option value="all">모든 서비스</option>
-          <option value="EC2">🖥️ EC2</option>
-          <option value="RDS">🗄️ RDS</option>
-          <option value="S3">🪣 S3</option>
-          <option value="IAM">👤 IAM</option>
-        </select>
-
-
-
         <button
           className="btn-mini"
           onClick={() => loadInspectionHistory()}
@@ -357,28 +331,6 @@ const InspectionHistory = () => {
           title="새로고침"
         >
           {loading ? '⏳' : '🔄'}
-        </button>
-
-        <button
-          className="btn-mini"
-          onClick={() => {
-            const resetFilters = {
-              serviceType: 'all',
-              historyMode: 'history'
-            };
-            setFilters(resetFilters);
-            setPagination(prev => ({ 
-              ...prev, 
-              hasMore: false, 
-              lastEvaluatedKey: null, 
-              loading: false 
-            }));
-            setHistoryData([]); // 기존 데이터 클리어
-          }}
-          disabled={loading || pagination.loading}
-          title="초기화"
-        >
-          🗑️
         </button>
       </div>
 

@@ -81,32 +81,7 @@ export const inspectionService = {
 
 
 
-  /**
-   * 검사 이력 조회 (필터링 단순화됨)
-   * Requirements: 1.1 - 고객이 검사 이력을 요청
-   * @param {Object} params - 쿼리 파라미터
-   * @param {string} params.serviceType - 서비스 타입 필터 (선택사항)
-   * @returns {Promise<Object>} 검사 이력 목록
-   */
-  getInspectionHistory: async (params = {}) => {
-    return withRetry(async () => {
-      const queryParams = new URLSearchParams();
 
-      // 허용된 파라미터만 추가
-      const allowedParams = ['serviceType'];
-      Object.entries(params).forEach(([key, value]) => {
-        if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
-          queryParams.append(key, value);
-        }
-      });
-
-      const queryString = queryParams.toString();
-      const url = queryString ? `/inspections/history?${queryString}` : '/inspections/history';
-
-      const response = await api.get(url);
-      return response.data;
-    });
-  },
 
 
 
@@ -127,17 +102,13 @@ export const inspectionService = {
   },
 
   /**
-   * 검사 항목 상태 조회 (서비스별 필터링 지원)
+   * 검사 항목 상태 조회
    * Trusted Advisor 스타일 - 각 검사 항목별 최근 상태
-   * @param {string} serviceType - 서비스 타입 (선택사항, 없으면 모든 서비스)
-   * @param {string} region - AWS 리전 (선택사항)
    * @returns {Promise<Object>} 검사 항목 상태
    */
-  getAllItemStatus: async (serviceType = null, region = null) => {
+  getAllItemStatus: async () => {
     return withRetry(async () => {
       const params = new URLSearchParams();
-      if (serviceType) params.append('serviceType', serviceType);
-      if (region) params.append('region', region);
       params.append('_t', Date.now()); // 캐시 무효화
       
       const queryString = params.toString();
@@ -148,23 +119,11 @@ export const inspectionService = {
     });
   },
 
-  /**
-   * 특정 서비스의 검사 항목 상태 조회
-   * Trusted Advisor 스타일 - 서비스별 검사 항목 상태
-   * @param {string} serviceType - 서비스 타입 (EC2, RDS, S3, IAM)
-   * @returns {Promise<Object>} 서비스별 검사 항목 상태
-   */
-  getServiceItemStatus: async (serviceType) => {
-    return withRetry(async () => {
-      const response = await api.get(`/inspections/services/${serviceType}/items`);
-      return response.data;
-    });
-  },
+
 
   /**
    * 항목별 검사 이력 조회 (페이지네이션 지원)
    * @param {Object} params - 쿼리 파라미터
-   * @param {string} params.serviceType - 서비스 타입 필터 (선택사항)
    * @param {string} params.historyMode - 히스토리 모드 ('history' 또는 'latest')
    * @param {string} params.lastEvaluatedKey - 페이지네이션 키 (선택사항)
    * @returns {Promise<Object>} 항목별 검사 이력 목록
@@ -174,7 +133,7 @@ export const inspectionService = {
       const queryParams = new URLSearchParams();
 
       // 허용된 파라미터만 추가 (페이지네이션 키 포함)
-      const allowedParams = ['serviceType', 'historyMode', 'lastEvaluatedKey'];
+      const allowedParams = ['historyMode', 'lastEvaluatedKey'];
       Object.entries(params).forEach(([key, value]) => {
         if (allowedParams.includes(key) && value !== undefined && value !== null && value !== '') {
           queryParams.append(key, value);
