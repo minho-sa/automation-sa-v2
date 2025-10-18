@@ -130,13 +130,19 @@ export const inspectionService = {
    * 검사 항목 상태 조회 (서비스별 필터링 지원)
    * Trusted Advisor 스타일 - 각 검사 항목별 최근 상태
    * @param {string} serviceType - 서비스 타입 (선택사항, 없으면 모든 서비스)
+   * @param {string} region - AWS 리전 (선택사항)
    * @returns {Promise<Object>} 검사 항목 상태
    */
-  getAllItemStatus: async (serviceType = null) => {
+  getAllItemStatus: async (serviceType = null, region = null) => {
     return withRetry(async () => {
-      const url = serviceType 
-        ? `/inspections/items/status?serviceType=${serviceType}`
-        : '/inspections/items/status';
+      const params = new URLSearchParams();
+      if (serviceType) params.append('serviceType', serviceType);
+      if (region) params.append('region', region);
+      params.append('_t', Date.now()); // 캐시 무효화
+      
+      const queryString = params.toString();
+      const url = `/inspections/items/status?${queryString}`;
+      
       const response = await api.get(url);
       return response.data;
     });

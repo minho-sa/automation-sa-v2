@@ -58,17 +58,19 @@ class InspectionManager {
   }
 
   // 검사 시작 및 자동 등록
-  async startInspectionWithAutoTracking(serviceType, selectedItems, assumeRoleArn) {
+  async startInspectionWithAutoTracking(serviceType, selectedItems, assumeRoleArn, region = 'us-east-1') {
     try {
       console.log('🚀 [InspectionManager] Starting inspection with auto tracking:', {
         serviceType,
-        selectedItemsCount: selectedItems?.length || 0
+        selectedItemsCount: selectedItems?.length || 0,
+        region
       });
 
       // 백엔드에 검사 시작 요청
       const response = await inspectionService.startInspection({
         serviceType,
         assumeRoleArn,
+        region,
         inspectionConfig: {
           selectedItems: selectedItems || []
         }

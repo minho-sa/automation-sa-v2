@@ -14,7 +14,7 @@ class STSService {
   /**
    * 검사용 AssumeRole (장기 세션)
    */
-  async assumeRoleForInspection(roleArn, inspectionId) {
+  async assumeRoleForInspection(roleArn, inspectionId, region = 'us-east-1') {
     try {
       if (!this.isValidArnFormat(roleArn)) {
         throw new Error(`Invalid ARN format: ${roleArn}`);
@@ -35,7 +35,7 @@ class STSService {
         sessionToken: response.Credentials.SessionToken,
         expiration: response.Credentials.Expiration,
         roleArn,
-        region: process.env.AWS_REGION || 'us-east-1'
+        region
       };
     } catch (error) {
       throw this.handleStsError(error, roleArn);

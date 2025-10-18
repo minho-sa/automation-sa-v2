@@ -20,8 +20,11 @@ class PublicAccessInspector extends BaseInspector {
 
   async performInspection(awsCredentials, inspectionConfig) {
     try {
+      const region = inspectionConfig.region || awsCredentials.region || 'us-east-1';
+      this.region = region;
+      
       this.s3Client = new S3Client({
-        region: awsCredentials.region || 'us-east-1',
+        region: region,
         credentials: {
           accessKeyId: awsCredentials.accessKeyId,
           secretAccessKey: awsCredentials.secretAccessKey,
@@ -30,6 +33,7 @@ class PublicAccessInspector extends BaseInspector {
       });
 
       this.dataCollector = new S3DataCollector(this.s3Client, this);
+      this.logger.info(`S3 public access inspection started for region: ${region}`);
 
       const buckets = await this.dataCollector.getBuckets();
       

@@ -54,7 +54,8 @@ const ResourceInspectionTab = () => {
       const result = await startInspection(
         inspectionRequest.serviceType,
         inspectionRequest.inspectionConfig?.selectedItems || [], // 실제 선택된 항목들
-        inspectionRequest.assumeRoleArn
+        inspectionRequest.assumeRoleArn,
+        inspectionRequest.region // 리전 정보 추가
       );
 
       if (result.success) {

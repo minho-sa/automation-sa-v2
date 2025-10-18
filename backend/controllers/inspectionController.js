@@ -25,8 +25,14 @@ const startInspection = async (req, res) => {
     try {
 
 
-        const { serviceType, assumeRoleArn, inspectionConfig = {} } = req.body;
+        const { serviceType, assumeRoleArn, region, inspectionConfig = {} } = req.body;
         const customerId = req.user.userId; // JWT 토큰에서 추출
+        
+        // 리전 정보를 inspectionConfig에 추가
+        const finalInspectionConfig = {
+            ...inspectionConfig,
+            region: region || inspectionConfig.region || 'us-east-1'
+        };
 
         // 입력 검증
         if (!serviceType) {
@@ -50,7 +56,7 @@ const startInspection = async (req, res) => {
             customerId,
             serviceType,
             assumeRoleArn,
-            inspectionConfig
+            finalInspectionConfig
         );
 
         if (!result.success) {
@@ -69,6 +75,7 @@ const startInspection = async (req, res) => {
                 batchId: result.data.batchId,
                 inspectionJobs: result.data.inspectionJobs,
                 serviceType: serviceType,
+                region: finalInspectionConfig.region,
                 totalJobs: result.data.inspectionJobs.length
             }));
         } else {
@@ -77,6 +84,7 @@ const startInspection = async (req, res) => {
                 message: 'Inspection started successfully',
                 inspectionId: result.data.inspectionId,
                 serviceType: serviceType,
+                region: finalInspectionConfig.region,
                 status: result.data.status,
                 estimatedDuration: result.estimatedDuration
             }));
@@ -115,14 +123,15 @@ const startInspection = async (req, res) => {
 const getAllItemStatus = async (req, res) => {
     try {
         const customerId = req.user.userId;
-        const { serviceType } = req.query;
+        const { serviceType, region } = req.query;
 
-        console.log(`🔍 [InspectionController] Getting item status for customer ${customerId}, service: ${serviceType || 'ALL'}`);
+        console.log(`🔍 [InspectionController] Getting item status for customer ${customerId}, service: ${serviceType || 'ALL'}, region: ${region || 'ALL'}`);
 
         // 단일 테이블 구조에서 최신 검사 결과 조회
         const result = await historyService.getInspectionHistory(customerId, {
             historyMode: 'latest',
-            serviceType: serviceType  // 서비스 타입 필터 추가
+            serviceType: serviceType,  // 서비스 타입 필터 추가
+            region: region  // 리전 필터 추가
         });
 
         console.log(`🔍 [InspectionController] History service result:`, {
@@ -182,6 +191,7 @@ const getItemInspectionHistory = async (req, res) => {
         const customerId = req.user.userId;
         const {
             serviceType,
+            region,
             historyMode = 'history',
             lastEvaluatedKey
         } = req.query;
@@ -194,6 +204,7 @@ const getItemInspectionHistory = async (req, res) => {
         // 항목별 검사 이력 조회 (페이지네이션 지원)
         const result = await historyService.getInspectionHistory(customerId, {
             serviceType,
+            region,
             historyMode,
             lastEvaluatedKey
         });

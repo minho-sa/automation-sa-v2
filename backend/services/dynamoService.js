@@ -303,22 +303,36 @@ class DynamoService {
   }
 
   async getInspectionHistory(customerId, options = {}) {
-    const { historyMode = 'history', serviceType, lastEvaluatedKey, limit = 10 } = options;
+    const { historyMode = 'history', serviceType, region, lastEvaluatedKey, limit = 10 } = options;
+    
+    console.log(`📊 [DynamoService] Query params:`, { customerId, historyMode, serviceType, region });
     
     let keyConditionExpression = 'customerId = :customerId';
     let expressionAttributeValues = { ':customerId': customerId };
     
-    // 서비스 타입별 필터링
-    if (serviceType && serviceType !== 'all') {
+    // 리전별 최적화된 필터링
+    if (serviceType && serviceType !== 'all' && region) {
+      // 서비스+리전: LATEST#EC2#us-east-1# 또는 HISTORY#EC2#us-east-1#
+      const keyPrefix = historyMode === 'latest' 
+        ? `LATEST#${serviceType}#${region}#`
+        : `HISTORY#${serviceType}#${region}#`;
+      keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
+      expressionAttributeValues[':prefix'] = keyPrefix;
+      console.log(`🎯 [DynamoService] Using region-specific prefix: ${keyPrefix}`);
+    } else if (serviceType && serviceType !== 'all') {
+      // 서비스만: LATEST#EC2# 또는 HISTORY#EC2#
       const keyPrefix = historyMode === 'latest' 
         ? `LATEST#${serviceType}#`
         : `HISTORY#${serviceType}#`;
       keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
       expressionAttributeValues[':prefix'] = keyPrefix;
+      console.log(`🛠️ [DynamoService] Using service prefix: ${keyPrefix}`);
     } else {
+      // 전체: LATEST# 또는 HISTORY#
       const keyPrefix = historyMode === 'latest' ? 'LATEST#' : 'HISTORY#';
       keyConditionExpression += ' AND begins_with(itemKey, :prefix)';
       expressionAttributeValues[':prefix'] = keyPrefix;
+      console.log(`🌍 [DynamoService] Using global prefix: ${keyPrefix}`);
     }
 
     const params = {
@@ -344,7 +358,15 @@ class DynamoService {
     }
 
     const command = new QueryCommand(params);
-    return await this.client.send(command);
+    const result = await this.client.send(command);
+    
+    console.log(`📊 [DynamoService] Query result:`, {
+      itemCount: result.Items?.length || 0,
+      scannedCount: result.ScannedCount || 0,
+      hasMore: !!result.LastEvaluatedKey
+    });
+    
+    return result;
   }
 
   // ========== 범용 DynamoDB 작업 ==========

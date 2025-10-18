@@ -15,8 +15,11 @@ class EC2Inspector extends BaseInspector {
   }
 
   async preInspectionValidation(awsCredentials, inspectionConfig) {
+    const region = inspectionConfig.region || awsCredentials.region || 'us-east-1';
+    this.region = region;
+    
     this.ec2Client = new EC2Client({
-      region: awsCredentials.region || 'us-east-1',
+      region: region,
       credentials: {
         accessKeyId: awsCredentials.accessKeyId,
         secretAccessKey: awsCredentials.secretAccessKey,
@@ -24,6 +27,8 @@ class EC2Inspector extends BaseInspector {
       }
     });
     this.dataCollector = new EC2DataCollector(this.ec2Client, this);
+    
+    this.logger.info(`EC2 inspection initialized for region: ${region}`);
   }
 
   async performItemInspection(awsCredentials, inspectionConfig) {

@@ -8,17 +8,19 @@ import { inspectionManager } from '../services';
 
 export const useInspectionStarter = () => {
   // 검사 시작 (자동 추적 포함)
-  const startInspection = useCallback(async (serviceType, selectedItems, assumeRoleArn) => {
+  const startInspection = useCallback(async (serviceType, selectedItems, assumeRoleArn, region = 'us-east-1') => {
     console.log('🚀 [useInspectionStarter] Starting inspection:', {
       serviceType,
-      selectedItemsCount: selectedItems?.length || 0
+      selectedItemsCount: selectedItems?.length || 0,
+      region
     });
 
     try {
       const result = await inspectionManager.startInspectionWithAutoTracking(
         serviceType,
         selectedItems,
-        assumeRoleArn
+        assumeRoleArn,
+        region
       );
 
       if (result.success) {

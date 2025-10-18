@@ -62,12 +62,13 @@ class InspectionService {
    * @param {string} customerId - 고객 ID
    * @param {string} serviceType - 검사할 서비스 타입
    * @param {string} assumeRoleArn - 고객 계정의 역할 ARN
-   * @param {Object} inspectionConfig - 검사 설정
+   * @param {Object} inspectionConfig - 검사 설정 (region, selectedItems 포함)
    * @returns {Promise<Object>} 검사 시작 응답
    */
   async startInspection(customerId, serviceType, assumeRoleArn, inspectionConfig = {}) {
     const batchId = uuidv4();
     const selectedItems = inspectionConfig.selectedItems || [];
+    const region = inspectionConfig.region || 'us-east-1';
 
     try {
       const inspectionJobs = [];
@@ -75,6 +76,7 @@ class InspectionService {
       this.logger.info('Processing inspection request', {
         customerId,
         serviceType,
+        region,
         selectedItemsCount: selectedItems.length,
         selectedItems: selectedItems
       });
@@ -120,6 +122,7 @@ class InspectionService {
           customerId,
           inspectionId: job.inspectionId,
           serviceType,
+          region,
           assumeRoleArn,
           batchId,
           itemId: job.itemId
@@ -133,7 +136,7 @@ class InspectionService {
           percentage: 0,
           completedItems: 0,
           totalItems: inspectionJobs.length,
-          currentStep: `Starting batch inspection (${inspectionJobs.length} items)`,
+          currentStep: `Starting batch inspection in ${region} (${inspectionJobs.length} items)`,
           estimatedTimeRemaining: null
         },
         batchInfo: {
@@ -141,7 +144,8 @@ class InspectionService {
           totalInspections: inspectionJobs.length,
           completedInspections: 0,
           remainingInspections: inspectionJobs.length
-        }
+        },
+        region
       });
 
       // 비동기로 각 검사 실행
@@ -239,7 +243,7 @@ class InspectionService {
    * @param {string} inspectionId - 검사 ID
    * @param {string} serviceType - 서비스 타입
    * @param {string} assumeRoleArn - 역할 ARN
-   * @param {Object} inspectionConfig - 검사 설정
+   * @param {Object} inspectionConfig - 검사 설정 (region 포함)
    */
   async executeItemInspectionAsync(customerId, inspectionId, serviceType, assumeRoleArn, inspectionConfig) {
     const inspectionStatus = this.activeInspections.get(inspectionId);
@@ -255,7 +259,7 @@ class InspectionService {
       // 1. Assume Role 수행
       currentStepIndex++;
       this.updateInspectionProgress(inspectionId, steps, currentStepIndex);
-      const awsCredentials = await this.assumeRole(assumeRoleArn, inspectionId);
+      const awsCredentials = await this.assumeRole(assumeRoleArn, inspectionId, inspectionConfig.region);
 
       // 2. Inspector 가져오기
       currentStepIndex++;
@@ -272,7 +276,8 @@ class InspectionService {
         awsCredentials,
         {
           ...inspectionConfig,
-          targetItem: inspectionConfig.targetItemId
+          targetItem: inspectionConfig.targetItemId,
+          region: inspectionConfig.region || 'us-east-1'
         }
       );
 
@@ -320,7 +325,7 @@ class InspectionService {
           percentage: batchProgress.percentage,
           completedItems: batchProgress.completedItems,
           totalItems: batchProgress.totalItems,
-          currentStep: `Completed ${inspectionConfig.targetItemId} (${batchProgress.completedItems}/${batchProgress.totalItems})`,
+          currentStep: `Completed ${inspectionConfig.targetItemId} in ${inspectionConfig.region || 'us-east-1'} (${batchProgress.completedItems}/${batchProgress.totalItems})`,
           estimatedTimeRemaining: batchProgress.estimatedTimeRemaining
         },
         completedItem: {
@@ -342,6 +347,7 @@ class InspectionService {
         inspectionId,
         customerId,
         serviceType,
+        region: inspectionConfig.region || 'us-east-1',
         itemId: inspectionConfig.targetItemId,
         error: error.message,
         stack: error.stack
@@ -382,15 +388,17 @@ class InspectionService {
    * Assume Role 수행 (검사 전용)
    * @param {string} roleArn - 역할 ARN
    * @param {string} inspectionId - 검사 ID
+   * @param {string} region - 대상 리전
    * @returns {Promise<Object>} AWS 자격 증명
    */
-  async assumeRole(roleArn, inspectionId) {
+  async assumeRole(roleArn, inspectionId, region = 'us-east-1') {
     try {
-      return await stsService.assumeRoleForInspection(roleArn, inspectionId);
+      return await stsService.assumeRoleForInspection(roleArn, inspectionId, region);
     } catch (error) {
       this.logger.error('Failed to assume role for inspection', {
         roleArn,
         inspectionId,
+        region,
         error: error.message
       });
       throw error;

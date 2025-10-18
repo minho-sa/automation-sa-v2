@@ -28,6 +28,7 @@ class InspectionItemService {
         customerId,
         serviceType: itemResult.serviceType,
         itemId: itemResult.itemId,
+        region: itemResult.region || 'us-east-1',
         findings: itemResult.findings || []
       };
 
@@ -39,7 +40,8 @@ class InspectionItemService {
         itemResult.serviceType,
         itemResult.itemId,
         now,
-        inspectionId
+        inspectionId,
+        itemResult.region || 'us-east-1'
       );
 
       const historyItem = {
@@ -50,7 +52,11 @@ class InspectionItemService {
       };
 
       // 2. 최신 상태용 레코드 저장/업데이트 (LATEST)
-      const latestKey = InspectionItemResult.helpers.createLatestKey(itemResult.serviceType, itemResult.itemId);
+      const latestKey = InspectionItemResult.helpers.createLatestKey(
+        itemResult.serviceType, 
+        itemResult.itemId,
+        itemResult.region || 'us-east-1'
+      );
       const latestItem = {
         ...baseItem,
         itemKey: latestKey,

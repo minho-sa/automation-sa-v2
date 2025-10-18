@@ -38,6 +38,7 @@ class HistoryService {
     try {
       const {
         serviceType,
+        region,
         historyMode = 'history',
         lastEvaluatedKey,
         aggregated = false
@@ -51,14 +52,23 @@ class HistoryService {
         ':customerId': customerId
       };
 
-      // 모델 헬퍼를 사용한 키 프리픽스 생성
-      if (serviceType && serviceType !== 'all') {
+      // 리전별 최적화된 쿼리
+      if (serviceType && serviceType !== 'all' && region) {
+        // 서비스+리전 조합: LATEST#EC2#us-east-1# 또는 HISTORY#EC2#us-east-1#
+        const keyPrefix = historyMode === 'latest' 
+          ? `LATEST#${serviceType}#${region}#`
+          : `HISTORY#${serviceType}#${region}#`;
+        keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
+        expressionAttributeValues[':itemKeyPrefix'] = keyPrefix;
+      } else if (serviceType && serviceType !== 'all') {
+        // 서비스만: LATEST#EC2# 또는 HISTORY#EC2#
         const keyPrefix = historyMode === 'latest' 
           ? `LATEST#${serviceType}#`
           : `HISTORY#${serviceType}#`;
         keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
         expressionAttributeValues[':itemKeyPrefix'] = keyPrefix;
       } else {
+        // 전체: LATEST# 또는 HISTORY#
         keyConditionExpression += ' AND begins_with(itemKey, :itemKeyPrefix)';
         expressionAttributeValues[':itemKeyPrefix'] = itemKeyPrefix;
       }
@@ -87,9 +97,12 @@ class HistoryService {
         params.ConsistentRead = true;
       }
 
+      console.log(`🔍 [HistoryService] Calling dynamoService with region: ${region}`);
+      
       const result = await this.dynamoService.getInspectionHistory(customerId, {
         historyMode,
         serviceType,
+        region,
         lastEvaluatedKey,
         limit
       });
@@ -112,18 +125,21 @@ class HistoryService {
             services[serviceType] = {};
           }
 
-          let itemId;
+          let itemId, itemRegion;
           try {
             const parsed = InspectionItemResult.helpers.parseItemKey(item.itemKey);
             itemId = parsed.itemId;
+            itemRegion = parsed.region;
           } catch (error) {
             itemId = item.itemId || 'unknown';
+            itemRegion = item.region || 'us-east-1';
           }
 
           const findings = item.findings || [];
           services[serviceType][itemId] = {
             inspectionTime: item.inspectionTime,
             inspectionId: item.inspectionId || item.lastInspectionId,
+            region: itemRegion,
             // 요약 정보
             issueCount: findings.length,
             hasIssues: findings.length > 0,

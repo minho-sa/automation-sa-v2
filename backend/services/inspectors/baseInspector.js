@@ -12,6 +12,7 @@ class BaseInspector {
     this.findings = [];
     this.startTime = null;
     this.resourcesScanned = 0;
+    this.region = 'us-east-1'; // 기본 리전
     this.logger = this.createLogger();
   }
 
@@ -21,6 +22,7 @@ class BaseInspector {
     this.startTime = Date.now();
     this.findings = [];
     this.resourcesScanned = 0;
+    this.region = inspectionConfig.region || awsCredentials.region || 'us-east-1';
 
     try {
       await this.preInspectionValidation(awsCredentials, inspectionConfig);
@@ -90,7 +92,8 @@ class BaseInspector {
       itemId: inspectionConfig.targetItem || inspectionConfig.targetItemId || 'default',
       findings: findings,
       inspectionTime: Date.now(),
-      resourcesScanned: this.resourcesScanned
+      resourcesScanned: this.resourcesScanned,
+      region: this.region
     }];
   }
 
@@ -249,7 +252,8 @@ class BaseInspector {
       itemId: 'partial',
       findings: this.findings.map(f => f.toApiResponse()),
       inspectionTime: Date.now(),
-      resourcesScanned: this.resourcesScanned
+      resourcesScanned: this.resourcesScanned,
+      region: this.region
     }] : [];
   }
 

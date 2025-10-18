@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { inspectionItems, severityColors, severityIcons } from '../../data/inspectionItems';
 import { getItemSeverity } from '../../utils/itemMappings';
 import { inspectionService } from '../../services';
+import RegionSelector from '../common/RegionSelector';
 import './ServiceInspectionSelector.css';
 
 const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
   const [selectedService, setSelectedService] = useState(null);
   const [selectedItems, setSelectedItems] = useState({});
   const [assumeRoleArn, setAssumeRoleArn] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState('us-east-1');
   const [itemStatuses, setItemStatuses] = useState({});
   const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [expandedItems, setExpandedItems] = useState({}); // 드롭다운 상태 관리
@@ -63,27 +65,68 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     setSelectedItems(defaultSelected);
 
     // 선택된 서비스의 최신 상태만 로드
-    await loadServiceItemStatuses(serviceId);
+    await loadServiceItemStatuses(serviceId, selectedRegion);
   };
 
-  // 특정 서비스의 검사 항목 상태 로드
-  const loadServiceItemStatuses = async (serviceId) => {
+  // 리전 변경 시 데이터 새로고침
+  const handleRegionChange = async (newRegion) => {
+    const oldRegion = selectedRegion;
+    console.log(`🌍 [ServiceInspectionSelector] Region change: ${oldRegion} → ${newRegion}`);
+    
+    setSelectedRegion(newRegion);
+    
+    if (selectedService) {
+      console.log(`🔄 [ServiceInspectionSelector] Force reload ${selectedService} for ${newRegion}`);
+      
+      setItemStatuses({});
+      setLoadingStatuses(true);
+      
+      try {
+        console.log(`📡 [ServiceInspectionSelector] Direct API call: ${selectedService}, ${newRegion}`);
+        const result = await inspectionService.getAllItemStatus(selectedService, newRegion);
+        
+        if (result.success) {
+          console.log(`✅ [ServiceInspectionSelector] Success:`, result.data);
+          setItemStatuses(result.data.services);
+        } else {
+          console.error(`❌ [ServiceInspectionSelector] Failed:`, result.error);
+          setItemStatuses({});
+        }
+      } catch (error) {
+        console.error(`🚨 [ServiceInspectionSelector] Error:`, error);
+        setItemStatuses({});
+      } finally {
+        setLoadingStatuses(false);
+      }
+    }
+  };
+
+  // 특정 서비스의 검사 항목 상태 로드 (리전 포함)
+  const loadServiceItemStatuses = async (serviceId, region = null) => {
     try {
       setLoadingStatuses(true);
       
-      const result = await inspectionService.getAllItemStatus(serviceId);
+      const targetRegion = region || selectedRegion;
+      console.log(`📡 [ServiceInspectionSelector] Loading ${serviceId} status for region: ${targetRegion}`);
+      
+      const result = await inspectionService.getAllItemStatus(serviceId, targetRegion);
       
       if (result.success) {
-        // 기존 상태를 유지하면서 선택된 서비스만 업데이트
-        setItemStatuses(prev => ({
-          ...prev,
-          ...result.data.services
-        }));
+        console.log(`✅ [ServiceInspectionSelector] Loaded ${serviceId} data:`, {
+          region: targetRegion,
+          services: Object.keys(result.data.services),
+          itemCount: Object.values(result.data.services).reduce((sum, service) => sum + Object.keys(service).length, 0)
+        });
+        
+        // 리전별 데이터로 완전 교체 (기존 다른 리전 데이터 제거)
+        setItemStatuses(result.data.services);
       } else {
         console.error('Failed to load service item statuses:', result.error);
+        setItemStatuses({}); // 실패 시 빈 상태
       }
     } catch (error) {
       console.error('Error loading service item statuses:', error);
+      setItemStatuses({}); // 에러 시 빈 상태
     } finally {
       setLoadingStatuses(false);
     }
@@ -230,6 +273,7 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
     onStartInspection({
       serviceType: selectedService,
       assumeRoleArn,
+      region: selectedRegion,
       inspectionConfig: {
         selectedItems: selectedItemIds
       },
@@ -348,15 +392,28 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
               </div>
               <div className="service-title-compact">
                 <h2>{inspectionItems[selectedService].name}</h2>
-                <span className="selected-count">
-                  {Object.values(selectedItems).filter(Boolean).length}개 선택됨
-                </span>
+                <div className="service-meta">
+                  <span className="selected-count">
+                    {Object.values(selectedItems).filter(Boolean).length}개 선택됨
+                  </span>
+                  <span className="region-info">
+                    📍 {selectedRegion}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
           {/* 간소화된 설정 패널 */}
           <div className="config-panel-compact">
+            <div className="config-row">
+              <RegionSelector
+                selectedRegion={selectedRegion}
+                onRegionChange={handleRegionChange}
+                disabled={isLoading}
+                className="region-selector--inline"
+              />
+            </div>
             <div className="arn-input-compact">
               <input
                 id="roleArn"
@@ -466,7 +523,12 @@ const ServiceInspectionSelector = ({ onStartInspection, isLoading }) => {
                                 </span>
                                 {statusDisplay.time && (
                                   <span className="last-check-time">
-                                    마지막 검사: {statusDisplay.time}
+                                    마지막 검사: {statusDisplay.time} ({selectedRegion})
+                                  </span>
+                                )}
+                                {loadingStatuses && (
+                                  <span className="loading-indicator">
+                                    🔄 리전 데이터 로딩 중...
                                   </span>
                                 )}
                               </div>

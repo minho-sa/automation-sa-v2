@@ -8,13 +8,15 @@ const InspectionItemResultSchema = {
   customerId: 'string', // 고객 ID (HASH) - 사용자별 파티션
   itemKey: 'string', // 아이템 식별키 (RANGE) - Latest 빠른 조회용
 
-  // itemKey 구조:
-  // LATEST: "LATEST#{serviceType}#{itemId}"
-  // HISTORY: "HISTORY#{serviceType}#{itemId}#{timestamp}#{inspectionId}"
+  // itemKey 구조 (최적화됨):
+  // LATEST: "LATEST#{serviceType}#{region}"
+  // HISTORY: "HISTORY#{serviceType}#{region}#{timestamp}"
+  // itemId는 별도 필드로 분리
 
   // 핵심 데이터
   serviceType: 'string', // EC2, RDS, S3, IAM - 서비스별 분류
   itemId: 'string', // dangerous-ports, bucket-encryption 등 - 프론트엔드에서 카테고리 매핑
+  region: 'string', // AWS 리전 (us-east-1, ap-northeast-2 등)
   findings: 'list', // 발견된 문제 배열 - 핵심 데이터
 
   // 메타데이터
@@ -88,26 +90,26 @@ module.exports = {
     /**
      * LATEST 아이템 키 생성
      * @param {string} serviceType - 서비스 타입 (EC2, S3, IAM)
-     * @param {string} itemId - 항목 ID (dangerous-ports, bucket-encryption)
+     * @param {string} itemId - 항목 ID
+     * @param {string} region - AWS 리전
      * @returns {string} LATEST 아이템 키
      */
-    createLatestKey(serviceType, itemId) {
-      return `LATEST#${serviceType}#${itemId}`;
+    createLatestKey(serviceType, itemId, region = 'us-east-1') {
+      return `LATEST#${serviceType}#${region}#${itemId}`;
     },
 
     /**
-     * HISTORY 아이템 키 생성 (서비스별 시간순 정렬 최적화)
+     * HISTORY 아이템 키 생성
      * @param {string} serviceType - 서비스 타입
      * @param {string} itemId - 항목 ID
-     * @param {number} timestamp - 검사 시간 (역순 정렬을 위해 변환)
+     * @param {number} timestamp - 검사 시간
      * @param {string} inspectionId - 검사 ID
+     * @param {string} region - AWS 리전
      * @returns {string} HISTORY 아이템 키
      */
-    createHistoryKey(serviceType, itemId, timestamp, inspectionId) {
-      // 시간 역순 정렬을 위해 timestamp를 뒤집음 (최신이 먼저 오도록)
+    createHistoryKey(serviceType, itemId, timestamp, inspectionId, region = 'us-east-1') {
       const reversedTimestamp = (9999999999999 - timestamp).toString().padStart(13, '0');
-      // 서비스별 시간순 정렬을 위해 timestamp를 itemId보다 앞에 배치
-      return `HISTORY#${serviceType}#${reversedTimestamp}#${itemId}#${inspectionId}`;
+      return `HISTORY#${serviceType}#${region}#${reversedTimestamp}#${itemId}#${inspectionId}`;
     },
 
     /**
@@ -123,19 +125,19 @@ module.exports = {
         return {
           recordType: 'LATEST',
           serviceType: parts[1],
-          itemId: parts[2]
+          region: parts[2],
+          itemId: parts[3]
         };
       } else if (recordType === 'HISTORY') {
-        // 새로운 구조: HISTORY#{serviceType}#{timestamp}#{itemId}#{inspectionId}
-        const reversedTimestamp = parseInt(parts[2]);
+        const reversedTimestamp = parseInt(parts[3]);
         const originalTimestamp = 9999999999999 - reversedTimestamp;
-
         return {
           recordType: 'HISTORY',
           serviceType: parts[1],
+          region: parts[2],
           timestamp: originalTimestamp,
-          itemId: parts[3],
-          inspectionId: parts[4]
+          itemId: parts[4],
+          inspectionId: parts[5]
         };
       }
 

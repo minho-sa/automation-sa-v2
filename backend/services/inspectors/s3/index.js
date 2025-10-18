@@ -6,6 +6,12 @@ class S3Inspector extends BaseInspector {
     super('S3');
   }
 
+  async preInspectionValidation(awsCredentials, inspectionConfig) {
+    const region = inspectionConfig.region || awsCredentials.region || 'us-east-1';
+    this.region = region;
+    this.logger.info(`S3 inspection initialized for region: ${region}`);
+  }
+
   async performInspection(awsCredentials, inspectionConfig) {
     const targetItem = inspectionConfig.targetItem || inspectionConfig.targetItemId;
     
@@ -48,7 +54,8 @@ class S3Inspector extends BaseInspector {
       itemId: inspectionConfig.targetItem || 'default',
       findings: this.findings.map(f => f.toApiResponse()),
       inspectionTime: Date.now(),
-      resourcesScanned: this.resourcesScanned
+      resourcesScanned: this.resourcesScanned,
+      region: this.region
     }];
   }
 }
